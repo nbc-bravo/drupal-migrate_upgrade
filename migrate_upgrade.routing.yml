@@ -1,0 +1,9 @@
+migrate_upgrade.upgrade:
+  path: '/upgrade'
+  defaults:
+    _form: '\Drupal\migrate_upgrade\Form\MigrateUpgradeForm'
+    _title: 'Migration'
+  requirements:
+    _permission: 'administer site configuration'
+  options:
+    _admin_route: TRUE
