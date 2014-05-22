@@ -192,23 +192,6 @@ class MigrateUpgradeForm extends SiteSettingsForm {
         return;
       }
 
-      // Verify we have a valid connection to a Drupal database supported for
-      // upgrade.
-/*      $driver = $form_state['values']['driver'];
-      $form_state['database'] = $form_state['values'][$driver];
-      $form_state['database']['driver'] = $driver;
-      // @todo: There should be a DrupalSqlBase method to use to
-      // determine the version.
-      try {
-        Database::addConnectionInfo('migrate', 'default', $form_state['database']);
-        $connection = Database::getConnection('default', 'migrate');
-      }
-      catch (\Exception $e) {
-        $message = t('Unable to connect to the source database. %message',
-          array('%message' => $e->getMessage()));
-        $this->setFormError(NULL, $form_state, $message);
-        return;
-      }*/
       $connection = Database::getConnection('default', 'migrate');
       if (!$connection->schema()->tableExists('node')) {
         $this->setFormError(NULL, $form_state, t('Source database does not ' .
