@@ -238,7 +238,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
       $batch = array(
         'title' => t('Running migrations'),
         'operations' => array(
-          array(array('Drupal\migrate_drupal\MigrateDrupalRunBatch', 'run'),
+          array(array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'),
                 array($migration_ids, $form_state['storage']['database'])),
         ),
         'progress_message' => '',
@@ -247,24 +247,15 @@ class MigrateUpgradeForm extends SiteSettingsForm {
         $form_state['rebuild'] = TRUE;
         $form_state['step'] = 'content';
         $batch['finished'] =
-          array('Drupal\migrate_drupal\MigrateDrupalRunBatch', 'configurationFinished');
+          array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'configurationFinished');
       }
       else {
         $form_state['redirect'] = '/';
         $batch['finished'] =
-          array('Drupal\migrate_drupal\MigrateDrupalRunBatch', 'contentFinished');
+          array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'contentFinished');
       }
-      $this->batchSet($batch);
+      batch_set($batch);
     }
-  }
-
-  /**
-   * Set a batch.
-   *
-   * @param $batch
-   */
-  protected function batchSet($batch) {
-    batch_set($batch);
   }
 
   /**
