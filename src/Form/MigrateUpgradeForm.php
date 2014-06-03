@@ -80,6 +80,9 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    * {@inheritdoc}
    */
   public function buildForm(array $form, array &$form_state) {
+    // Make sure the install API is available.
+    include_once DRUPAL_ROOT . '/core/includes/install.inc';
+
     // The multistep is for testing only. The final version will run a fixed
     // set of migrations.
     // @todo: Skip credential step if 'migrate' connection already defined.
@@ -144,6 +147,9 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    * {@inheritdoc}
    */
   public function validateForm(array &$form, array &$form_state) {
+    // Make sure the install API is available.
+    include_once DRUPAL_ROOT . '/core/includes/install.core.inc';
+
     if (isset($form_state['values']['driver'])) {
       // Ideally we would just call parent::validateForm(), but it will
       // add the source database as the 'default' connection and chaos will
@@ -229,6 +235,9 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    * {@inheritdoc}
    */
   public function submitForm(array &$form, array &$form_state) {
+    // Make sure the install API is available.
+    include_once DRUPAL_ROOT . '/core/includes/install.inc';
+
     if (isset($form_state['values']['driver'])) {
       $form_state['rebuild'] = TRUE;
       $form_state['step'] = 'configuration';
