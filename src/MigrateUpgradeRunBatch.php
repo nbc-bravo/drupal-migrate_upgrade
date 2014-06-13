@@ -10,6 +10,7 @@ namespace Drupal\migrate_upgrade;
 use Drupal\Core\Database\Database;
 use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate\MigrateExecutable;
+use Drupal\migrate_upgrade\Form\MigrateUpgradeForm;
 
 class MigrateUpgradeRunBatch {
 
@@ -30,8 +31,6 @@ class MigrateUpgradeRunBatch {
     $migration_id = reset($context['sandbox']['migration_ids']);
     $migration = entity_load('migration', $migration_id);
     if ($migration) {
-      // @TODO: if there are no source IDs then remove php.ini time limit.
-      // @TODO: move time limit back into MigrateExecutable so we can set it here.
       $messages = new MigrateMessageCapture();
       $executable = new MigrateExecutable($migration, $messages);
       $migration_name = $migration->label() ? $migration->label() : $migration_id;
@@ -91,19 +90,8 @@ class MigrateUpgradeRunBatch {
    * @param $operations
    * @param $elapsed
    */
-  public static function configurationFinished($success, $results, $operations, $elapsed) {
-    drupal_set_message(t('Configuration import complete.'));
-    self::displayResults($results);
-  }
-
-  /**
-   * @param $success
-   * @param $results
-   * @param $operations
-   * @param $elapsed
-   */
-  public static function contentFinished($success, $results, $operations, $elapsed) {
-    drupal_set_message(t('Content import complete.'));
+  public static function finished($success, $results, $operations, $elapsed) {
+    drupal_set_message(t('Import complete.'));
     self::displayResults($results);
     drupal_set_message(t('Congratulations, you upgraded Drupal!'));
   }

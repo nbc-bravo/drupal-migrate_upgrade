@@ -27,118 +27,54 @@ class MigrateUpgradeForm extends SiteSettingsForm {
   }
 
   /**
-   * Prepare to import configuration.
-   */
-  public function configurationStep(array &$form_state) {
-    Database::addConnectionInfo('migrate', 'default', $form_state['storage']['database']);
-    $version = $form_state['drupal_version'];
-
-    $form['#title'] = $this->t('Upgrade step 2: Import configuration');
-
-    $form['description'] = array(
-      '#markup' => $this->t('We will now import configuration, including ' .
-        'system settings and any vocabularies and content type and field ' .
-        'definitions, from the Drupal @version version of your site into this ' .
-        'new Drupal 8 site.', array('@version' => $version)),
-      '#suffix' => '<br />',
-    );
-
-    $form['submit'] = array(
-      '#type' => 'submit',
-      '#value' => $this->t('Import configuration'),
-    );
-
-    return $form;
-  }
-
-  /**
-   * Prepare to import configuration.
-   */
-  public function contentStep(array &$form_state) {
-    Database::addConnectionInfo('migrate', 'default', $form_state['storage']['database']);
-    $version = $form_state['drupal_version'];
-
-    $form['#title'] = $this->t('Upgrade step 3: Import content');
-
-    $form['description'] = array(
-      '#markup' => $this->t('We will now import content, including any nodes, ' .
-          'comments, users, and taxonomy terms, from the Drupal @version ' .
-          'version of your site into this new Drupal 8 site.',
-         array('@version' => $version)),
-      '#suffix' => '<br />',
-    );
-
-    $form['submit'] = array(
-      '#type' => 'submit',
-      '#value' => $this->t('Import content'),
-    );
-
-    return $form;
-  }
-
-  /**
    * {@inheritdoc}
    */
   public function buildForm(array $form, array &$form_state) {
     // Make sure the install API is available.
     include_once DRUPAL_ROOT . '/core/includes/install.inc';
 
-    // The multistep is for testing only. The final version will run a fixed
-    // set of migrations.
-    // @todo: Skip credential step if 'migrate' connection already defined.
-    if (!isset($form_state['storage']['database'])) {
-      $form = parent::buildForm($form, $form_state);
-      $form['#title'] = $this->t('Upgrade step 1: Source site information');
+    $form = parent::buildForm($form, $form_state);
+    $form['#title'] = $this->t('Drupal Upgrade: Source site information');
 
-      $form['files'] = array(
-        '#type' => 'details',
-        '#title' => t('Files'),
-        '#open' => TRUE,
-        '#weight' => 2,
-      );
+    $form['files'] = array(
+      '#type' => 'details',
+      '#title' => t('Files'),
+      '#open' => TRUE,
+      '#weight' => 2,
+    );
 
-      $form['files']['site_address'] = array(
-        '#type' => 'textfield',
-        '#title' => $this->t('Source site address'),
-        '#description' => $this->t('Enter the address of your current Drupal ' .
-          'site (e.g. "http://www.example.com"). This address will be used to ' .
-          'retrieve any public files from the site.'),
-      );
+    $form['files']['site_address'] = array(
+      '#type' => 'textfield',
+      '#title' => $this->t('Source site address'),
+      '#description' => $this->t('Enter the address of your current Drupal ' .
+        'site (e.g. "http://www.example.com"). This address will be used to ' .
+        'retrieve any public files from the site.'),
+    );
 
-      $form['files']['private_file_directory'] = array(
-        '#type' => 'textfield',
-        '#title' => $this->t('Private file directory'),
-        '#description' => $this->t('If you have private files on your current ' .
-          'Drupal site which you want imported, please copy the complete private ' .
-          'file directory to a place accessible by your new Drupal 8 web server. ' .
-          'Enter the address of the directory (e.g., "/home/legacy_files/private" ' .
-          'or "http://private.example.com/legacy_files/private") here.'),
-      );
+    $form['files']['private_file_directory'] = array(
+      '#type' => 'textfield',
+      '#title' => $this->t('Private file directory'),
+      '#description' => $this->t('If you have private files on your current ' .
+        'Drupal site which you want imported, please copy the complete private ' .
+        'file directory to a place accessible by your new Drupal 8 web server. ' .
+        'Enter the address of the directory (e.g., "/home/legacy_files/private" ' .
+        'or "http://private.example.com/legacy_files/private") here.'),
+    );
 
-      $form['database'] = array(
-        '#type' => 'details',
-        '#title' => t('Database'),
-        '#open' => TRUE,
-        '#weight' => 1,
-      );
+    $form['database'] = array(
+      '#type' => 'details',
+      '#title' => t('Database'),
+      '#open' => TRUE,
+      '#weight' => 1,
+    );
 
-      $form['database']['driver'] = $form['driver'];
-      unset($form['driver']);
-      $form['database']['settings'] = $form['settings'];
-      unset($form['settings']);
-    }
-    elseif (isset($form_state['step'])) {
-      $step = $form_state['step'];
-      switch ($step) {
-        case 'configuration':
-          // @todo: Skip configuration step if configuration import is complete.
-          $form = $this->configurationStep($form_state);
-          break;
-        case 'content':
-          $form = $this->contentStep($form_state);
-          break;
-      }
-    }
+    $form['database']['driver'] = $form['driver'];
+    unset($form['driver']);
+    $form['database']['settings'] = $form['settings'];
+    unset($form['settings']);
+
+    // Rename the submit button.
+    $form['actions']['save']['#value'] = $this->t('Perform upgrade');
 
     return $form;
   }
@@ -147,9 +83,6 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    * {@inheritdoc}
    */
   public function validateForm(array &$form, array &$form_state) {
-    // Make sure the install API is available.
-    include_once DRUPAL_ROOT . '/core/includes/install.core.inc';
-
     if (isset($form_state['values']['driver'])) {
       // Ideally we would just call parent::validateForm(), but it will
       // add the source database as the 'default' connection and chaos will
@@ -238,33 +171,20 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     // Make sure the install API is available.
     include_once DRUPAL_ROOT . '/core/includes/install.inc';
 
-    if (isset($form_state['values']['driver'])) {
-      $form_state['rebuild'] = TRUE;
-      $form_state['step'] = 'configuration';
-    }
-    elseif (isset($form_state['step'])) {
-      $migration_ids = $this->getDestinationIds($form_state['step']);
-      $batch = array(
-        'title' => t('Running migrations'),
-        'operations' => array(
-          array(array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'),
-                array($migration_ids, $form_state['storage']['database'])),
-        ),
-        'progress_message' => '',
-      );
-      if ($form_state['step'] == 'configuration') {
-        $form_state['rebuild'] = TRUE;
-        $form_state['step'] = 'content';
-        $batch['finished'] =
-          array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'configurationFinished');
-      }
-      else {
-        $form_state['redirect'] = '/';
-        $batch['finished'] =
-          array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'contentFinished');
-      }
-      batch_set($batch);
-    }
+    $migration_ids = $this->getDestinationIds();
+
+    $batch = array(
+      'title' => t('Running migrations'),
+      'progress_message' => '',
+      'operations' => array(
+        array(array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'),
+              array($migration_ids, $form_state['storage']['database'])),
+      ),
+      'finished' => array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch',
+                          'finished'),
+    );
+    batch_set($batch);
+    $form_state['redirect'] = '/';
   }
 
   /**
@@ -289,26 +209,18 @@ class MigrateUpgradeForm extends SiteSettingsForm {
   }
 
   /**
-   * Gets migrate_drupal configurations.
-   * @todo: remove(?)
-   *
-   * @param string $step
-   *   Migration configuration destination type form step.
+   * Gets migration configurations.
    *
    * @return array
-   *   An array of configuration and content migrations.
+   *   An array of migration names.
    */
-  function getDestinationIds($step) {
+  function getDestinationIds() {
     $manifest = drupal_get_path('module', 'migrate_upgrade') . '/migrate.';
-    if ($step == 'content') {
-      $manifest .= 'content';
-    }
-    else {
-      $manifest .= 'config';
-    }
-    $manifest .= '.yml';
-    $list = Yaml::parse($manifest);
-    $names = $list[$step];
+    $config_manifest = $manifest . 'config.yml';
+    $content_manifest = $manifest . 'content.yml';
+    $config_list = Yaml::parse($config_manifest);
+    $content_list = Yaml::parse($content_manifest);
+    $names = array_merge($config_list['configuration'], $content_list['content']);
     return $names;
   }
 }
