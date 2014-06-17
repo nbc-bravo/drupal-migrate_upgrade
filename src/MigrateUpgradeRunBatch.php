@@ -55,7 +55,7 @@ class MigrateUpgradeRunBatch {
             array('@migration' => $migration_name));
           $context['results'][$migration_name] = 'failure';
           watchdog('migrate_upgrade', 'Import of @migration failed',
-                   array('@migration' => $migration_name));
+                   array('@migration' => $migration_name), WATCHDOG_ERROR);
           break;
         case MigrationInterface::RESULT_SKIPPED:
           $context['message'] = t('Import of @migration skipped due to unfulfilled dependencies',
