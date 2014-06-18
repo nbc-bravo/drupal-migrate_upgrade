@@ -79,6 +79,10 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     unset($form['driver']);
     $form['database']['settings'] = $form['settings'];
     unset($form['settings']);
+    $form['database']['settings']['mysql']['host'] = $form['database']['settings']['mysql']['advanced_options']['host'];
+    unset($form['database']['settings']['mysql']['advanced_options']['host']);
+    $form['database']['settings']['mysql']['host']['#title'] = 'Database host';
+    $form['database']['settings']['mysql']['host']['#weight'] = 0;
 
     // Rename the submit button.
     $form['actions']['save']['#value'] = $this->t('Perform upgrade');
