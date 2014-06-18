@@ -36,19 +36,26 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     $form = parent::buildForm($form, $form_state);
     $form['#title'] = $this->t('Drupal Upgrade: Source site information');
 
-    $form['files'] = array(
+    $form['source'] = array(
       '#type' => 'details',
-      '#title' => t('Files'),
+      '#title' => t('Source site'),
       '#open' => TRUE,
-      '#weight' => 2,
+      '#weight' => 0,
     );
 
-    $form['files']['site_address'] = array(
+    $form['source']['site_address'] = array(
       '#type' => 'textfield',
       '#title' => $this->t('Source site address'),
       '#description' => $this->t('Enter the address of your current Drupal ' .
         'site (e.g. "http://www.example.com"). This address will be used to ' .
         'retrieve any public files from the site.'),
+    );
+
+    $form['files'] = array(
+      '#type' => 'details',
+      '#title' => t('Files'),
+      '#open' => TRUE,
+      '#weight' => 2,
     );
 
     $form['files']['private_file_directory'] = array(
