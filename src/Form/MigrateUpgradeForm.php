@@ -77,6 +77,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
 
     $form['database']['driver'] = $form['driver'];
     unset($form['driver']);
+    unset($form['settings']['mysql']['database']['#default_value']);
     $form['database']['settings'] = $form['settings'];
     unset($form['settings']);
     $form['database']['settings']['mysql']['host'] = $form['database']['settings']['mysql']['advanced_options']['host'];
