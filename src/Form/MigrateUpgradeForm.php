@@ -87,6 +87,12 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     // Rename the submit button.
     $form['actions']['save']['#value'] = $this->t('Perform upgrade');
 
+    // The parent form uses #limit_validation_errors to avoid validating the
+    // unselected database drivers. This makes it difficult for us to handle
+    // database errors in our validation, and does not appear to actually be
+    // necessary with the current implementation, so we remove it.
+    unset($form['actions']['save']['#limit_validation_errors']);
+
     return $form;
   }
 
@@ -142,7 +148,13 @@ class MigrateUpgradeForm extends SiteSettingsForm {
         return;
       }
 
-      $connection = Database::getConnection('default', 'migrate');
+      try {
+        $connection = Database::getConnection('default', 'migrate');
+      }
+      catch (\Exception $e) {
+        $this->setFormError(NULL, $form_state, $e->getMessage());
+        return;
+      }
       if (!$connection->schema()->tableExists('node')) {
         $this->setFormError(NULL, $form_state, t('Source database does not ' .
           'contain a Drupal installation.'));
