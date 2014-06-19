@@ -1,0 +1,13 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the migrate_upgrade module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function migrate_upgrade_install() {
+  drupal_set_message(t("The Migrate Upgrade module has been enabled. Proceed to the <a href='@url'>upgrade form</a>.", array('@url' => url('upgrade'))));
+}

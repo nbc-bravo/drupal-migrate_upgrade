@@ -4,6 +4,7 @@ description: 'UI for migration from older Drupal versions.'
 package: Core
 version: VERSION
 core: 8.x
+configure: migrate_upgrade.upgrade
 dependencies:
   - migrate
   - migrate_drupal
