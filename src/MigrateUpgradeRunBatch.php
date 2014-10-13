@@ -23,7 +23,7 @@ class MigrateUpgradeRunBatch {
    *   The batch context.
    */
   public static function run($initial_ids, $db_spec, &$context) {
-    Database::addConnectionInfo('migrate', 'default', $db_spec);
+    Database::addConnectionInfo('migrate', 'default', $db_spec['database']);
     if (!isset($context['sandbox']['migration_ids'])) {
       $context['sandbox']['max'] = count($initial_ids);
       $context['sandbox']['migration_ids'] = $initial_ids;
