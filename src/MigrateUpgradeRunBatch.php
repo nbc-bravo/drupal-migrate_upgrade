@@ -11,6 +11,7 @@ use Drupal\Core\Database\Database;
 use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate\MigrateExecutable;
 use Drupal\migrate_upgrade\Form\MigrateUpgradeForm;
+use Drupal\Core\Url;
 
 class MigrateUpgradeRunBatch {
 
@@ -122,7 +123,8 @@ class MigrateUpgradeRunBatch {
           '1 migration', '@count migrations'))));
     }
     if (\Drupal::moduleHandler()->moduleExists('dblog')) {
-      drupal_set_message(l('Review the detailed migration log', '/upgrade-log'));
+      $url = Url::fromUri('base://upgrade-log');
+      drupal_set_message(\Drupal::l(t('Review the detailed migration log'), $url));
     }
   }
 }
