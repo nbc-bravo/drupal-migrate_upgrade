@@ -41,7 +41,7 @@ class MigrateUpgradeRunBatch {
           $context['message'] = t('Imported @migration',
             array('@migration' => $migration_name));
           $context['results'][$migration_name] = 'success';
-          watchdog('migrate_upgrade', 'Imported @migration',
+          \Drupal::logger('migrate_upgrade')->notice('Imported @migration',
                    array('@migration' => $migration_name));
           break;
         case MigrationInterface::RESULT_INCOMPLETE:
@@ -55,13 +55,13 @@ class MigrateUpgradeRunBatch {
           $context['message'] = t('Import of @migration failed',
             array('@migration' => $migration_name));
           $context['results'][$migration_name] = 'failure';
-          watchdog('migrate_upgrade', 'Import of @migration failed',
-                   array('@migration' => $migration_name), WATCHDOG_ERROR);
+          \Drupal::logger('migrate_upgrade')->error('Import of @migration failed',
+                   array('@migration' => $migration_name));
           break;
         case MigrationInterface::RESULT_SKIPPED:
           $context['message'] = t('Import of @migration skipped due to unfulfilled dependencies',
             array('@migration' => $migration_name));
-          watchdog('migrate_upgrade', 'Import of @migration skipped due to unfulfilled dependencies',
+          \Drupal::logger('migrate_upgrade')->error('Import of @migration skipped due to unfulfilled dependencies',
                    array('@migration' => $migration_name));
           break;
         case MigrationInterface::RESULT_DISABLED:
