@@ -12,6 +12,7 @@ use Drupal\Core\Entity\EntityStorageInterface;
 use Symfony\Component\Yaml\Yaml;
 use Drupal\Core\Installer\Form\SiteSettingsForm;
 use Drupal\Core\Database\Install\TaskException;
+use Drupal\Core\Form\FormStateInterface;
 
 class MigrateUpgradeForm extends SiteSettingsForm {
   /**
@@ -29,7 +30,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, array &$form_state) {
+  public function buildForm(array $form, FormStateInterface $form_state) {
     // Make sure the install API is available.
     include_once DRUPAL_ROOT . '/core/includes/install.inc';
 
@@ -100,8 +101,9 @@ class MigrateUpgradeForm extends SiteSettingsForm {
   /**
    * {@inheritdoc}
    */
-  public function validateForm(array &$form, array &$form_state) {
-    if (isset($form_state['values']['driver'])) {
+  public function validateForm(array &$form, FormStateInterface $form_state) {
+    $driver = $form_state->getValue('driver');
+    if (isset($driver)) {
       // Ideally we would just call parent::validateForm(), but it will
       // add the source database as the 'default' connection and chaos will
       // ensue. We must replicate the logic here, setting the 'migrate'
@@ -110,8 +112,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
       // Make sure the install API is available.
       include_once DRUPAL_ROOT . '/core/includes/install.core.inc';
 
-      $driver = $form_state['values']['driver'];
-      $database = $form_state['values'][$driver];
+      $database = $form_state->getValue($driver);
       $drivers = drupal_get_database_types();
       $reflection = new \ReflectionClass($drivers[$driver]);
       $install_namespace = $reflection->getNamespaceName();
@@ -137,11 +138,11 @@ class MigrateUpgradeForm extends SiteSettingsForm {
           // them in the error array with standard numeric keys.
           $errors[$driver . '][0'] = $e->getMessage();
         }
-        $form_state['storage']['database'] = $database;
-        $errors = install_database_errors($database, $form_state['values']['settings_file']);
+        $form_state->setStorage(array('database' => $database));
+        $errors = install_database_errors($database, $form_state->getValue('settings_file'));
       }
       foreach ($errors as $name => $message) {
-        $this->setFormError($name, $form_state, $message);
+        $form_state->setErrorByName($name, $message);
       }
 
       // Don't go any farther if we have errors with the database configuration.
@@ -153,34 +154,35 @@ class MigrateUpgradeForm extends SiteSettingsForm {
         $connection = Database::getConnection('default', 'migrate');
       }
       catch (\Exception $e) {
-        $this->setFormError(NULL, $form_state, $e->getMessage());
+        $form_state->setErrorByName(NULL, $e->getMessage());
         return;
       }
       if (!$connection->schema()->tableExists('node')) {
-        $this->setFormError(NULL, $form_state, t('Source database does not ' .
+        $form_state->setErrorByName(NULL, t('Source database does not ' .
           'contain a Drupal installation.'));
       }
       // Note we check D8 first, because it's reintroduced the menu_router
       // table we have used as the signature of D6.
       elseif ($connection->schema()->tableExists('key_value')) {
-        $this->setFormError(NULL, $form_state, t('Upgrade from this version ' .
+        $form_state->setErrorByName(NULL, t('Upgrade from this version ' .
                   'of Drupal is not supported.'));
       }
       elseif ($connection->schema()->tableExists('filter_format')) {
-        $form_state['drupal_version'] = 7;
+        $form_state->setValue('drupal_version', 7);
       }
       elseif ($connection->schema()->tableExists('menu_router')) {
-        $form_state['drupal_version'] = 6;
+        $form_state->setValue('drupal_version', 6);
       }
       else {
-        $this->setFormError(NULL, $form_state, t('Upgrade from this version ' .
+        $form_state->setErrorByName(NULL, t('Upgrade from this version ' .
           'of Drupal is not supported.'));
       }
 
       // Configure the file migration so it can find the files.
       // @todo: Handle D7.
-      if (!empty($form_state['values']['site_address'])) {
-        $site_address = rtrim($form_state['values']['site_address'], '/') . '/';
+      $site_address_value = $form_state->getValue('site_address');
+      if (!empty($site_address_value)) {
+        $site_address = rtrim($site_address_value, '/') . '/';
         $d6_file_config = \Drupal::config('migrate.migration.d6_file');
         $d6_file_config->set('destination.source_base_path', $site_address);
         $d6_file_config->save();
@@ -191,7 +193,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
   /**
    * {@inheritdoc}
    */
-  public function submitForm(array &$form, array &$form_state) {
+  public function submitForm(array &$form, FormStateInterface $form_state) {
     // Make sure the install API is available.
     include_once DRUPAL_ROOT . '/core/includes/install.inc';
 
@@ -202,13 +204,13 @@ class MigrateUpgradeForm extends SiteSettingsForm {
       'progress_message' => '',
       'operations' => array(
         array(array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'),
-              array($migration_ids, $form_state['storage']['database'])),
+              array($migration_ids, $form_state->getStorage('database'))),
       ),
       'finished' => array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch',
                           'finished'),
     );
     batch_set($batch);
-    $form_state['redirect'] = '/';
+    $form_state->setRedirect('<front>');
   }
 
   /**
