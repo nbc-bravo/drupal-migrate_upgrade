@@ -92,9 +92,7 @@ class MigrateUpgradeRunBatch {
    * @param $elapsed
    */
   public static function finished($success, $results, $operations, $elapsed) {
-    drupal_set_message(t('Import complete.'));
     self::displayResults($results);
-    drupal_set_message(t('Congratulations, you upgraded Drupal!'));
   }
 
   /**
@@ -104,6 +102,7 @@ class MigrateUpgradeRunBatch {
    */
   protected static function displayResults($results) {
     $successes = $failures = 0;
+    $status_type = 'status';
     foreach ($results as $result) {
       if ($result == 'success') {
         $successes++;
@@ -112,19 +111,26 @@ class MigrateUpgradeRunBatch {
         $failures++;
       }
     }
-    if ($successes > 0) {
+    if ($successes > 0 && $failures == 0) {
+      drupal_set_message(t('Import complete.'));
       drupal_set_message(t('@count succeeded',
         array('@count' => \Drupal::translation()->formatPlural($successes,
           '1 migration', '@count migrations'))));
+      drupal_set_message(t('Congratulations, you upgraded Drupal!'));
     }
     if ($failures > 0) {
+      drupal_set_message(t('Import process not completed'), 'error');
+      drupal_set_message(t('@count succeeded',
+        array('@count' => \Drupal::translation()->formatPlural($successes,
+          '1 migration', '@count migrations'))), 'error');
       drupal_set_message(t('@count failed',
         array('@count' => \Drupal::translation()->formatPlural($failures,
-          '1 migration', '@count migrations'))));
+          '1 migration', '@count migrations'))), 'error');
+      $status_type = 'error';
     }
     if (\Drupal::moduleHandler()->moduleExists('dblog')) {
       $url = new URL('migrate_upgrade.log');
-      drupal_set_message(\Drupal::l(t('Review the detailed migration log'), $url));
+      drupal_set_message(\Drupal::l(t('Review the detailed migration log'), $url), $status_type);
     }
   }
 }
