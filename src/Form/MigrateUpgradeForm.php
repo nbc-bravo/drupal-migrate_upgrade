@@ -47,6 +47,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     $form['source']['site_address'] = array(
       '#type' => 'textfield',
       '#title' => $this->t('Source site address'),
+      '#default_value' => 'http://',
       '#description' => $this->t('Enter the address of your current Drupal ' .
         'site (e.g. "http://www.example.com"). This address will be used to ' .
         'retrieve any public files from the site.'),
