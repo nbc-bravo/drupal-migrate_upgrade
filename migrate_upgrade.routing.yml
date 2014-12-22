@@ -7,3 +7,12 @@ migrate_upgrade.upgrade:
     _permission: 'administer site configuration'
   options:
     _admin_route: TRUE
+
+migrate_upgrade.log:
+  path: '/upgrade/log'
+  defaults:
+      _controller: '\Drupal\migrate_upgrade\Controller\MigrateController::showLog'
+  requirements:
+    _permission: 'administer site configuration'
+  options:
+    _admin_route: TRUE

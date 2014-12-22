@@ -123,7 +123,7 @@ class MigrateUpgradeRunBatch {
           '1 migration', '@count migrations'))));
     }
     if (\Drupal::moduleHandler()->moduleExists('dblog')) {
-      $url = Url::fromUri('base://upgrade-log');
+      $url = new URL('migrate_upgrade.log');
       drupal_set_message(\Drupal::l(t('Review the detailed migration log'), $url));
     }
   }
