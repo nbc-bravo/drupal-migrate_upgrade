@@ -9,7 +9,6 @@ namespace Drupal\migrate_upgrade\Form;
 
 use Drupal\Core\Database\Database;
 use Drupal\Core\Entity\EntityStorageInterface;
-use Symfony\Component\Yaml\Yaml;
 use Drupal\Core\Installer\Form\SiteSettingsForm;
 use Drupal\Core\Database\Install\TaskException;
 use Drupal\Core\Form\FormStateInterface;
@@ -159,6 +158,8 @@ class MigrateUpgradeForm extends SiteSettingsForm {
         $form_state->setErrorByName(NULL, $e->getMessage());
         return;
       }
+
+      $drupal_version = NULL;
       if (!$connection->schema()->tableExists('node')) {
         $form_state->setErrorByName(NULL, t('Source database does not ' .
           'contain a Drupal installation.'));
@@ -170,14 +171,21 @@ class MigrateUpgradeForm extends SiteSettingsForm {
                   'of Drupal is not supported.'));
       }
       elseif ($connection->schema()->tableExists('filter_format')) {
-        $form_state->setValue('drupal_version', 7);
+        $drupal_version = 7;
       }
       elseif ($connection->schema()->tableExists('menu_router')) {
-        $form_state->setValue('drupal_version', 6);
+        $drupal_version = 6;
       }
       else {
-        $form_state->setErrorByName(NULL, t('Upgrade from this version ' .
-          'of Drupal is not supported.'));
+        $form_state->setErrorByName(NULL, t('Upgrade from this version of Drupal is not supported.'));
+      }
+
+      $migration_ids = $this->getDestinationIds($drupal_version);
+      if (!empty($migration_ids)) {
+        $form_state->setValue('migration_ids', $migration_ids);
+      }
+      else {
+        $form_state->setErrorByName(NULL, t('Upgrade from this version of Drupal is not supported.'));
       }
 
       // Configure the file migration so it can find the files.
@@ -199,14 +207,12 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     // Make sure the install API is available.
     include_once DRUPAL_ROOT . '/core/includes/install.inc';
 
-    $migration_ids = $this->getDestinationIds();
-
     $batch = array(
       'title' => t('Running migrations'),
       'progress_message' => '',
       'operations' => array(
         array(array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'),
-              array($migration_ids, $form_state->getStorage('database'))),
+              array($form_state->getValue('migration_ids'), $form_state->getStorage('database'))),
       ),
       'finished' => array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch',
                           'finished'),
@@ -237,18 +243,26 @@ class MigrateUpgradeForm extends SiteSettingsForm {
   }
 
   /**
-   * Gets migration configurations.
+   * Gets migration configurations for the Drupal version being imported.
+   *
+   * @param $drupal_version
+   *  Version number for filtering migrations.
    *
    * @return array
    *   An array of migration names.
    */
-  function getDestinationIds() {
-    $manifest = drupal_get_path('module', 'migrate_upgrade') . '/migrate.';
-    $config_manifest = $manifest . 'config.yml';
-    $content_manifest = $manifest . 'content.yml';
-    $config_list = Yaml::parse($config_manifest);
-    $content_list = Yaml::parse($content_manifest);
-    $names = array_merge($config_list['configuration'], $content_list['content']);
-    return $names;
+  protected function getDestinationIds($drupal_version) {
+    $group_name = 'Drupal ' . $drupal_version;
+    $query = \Drupal::entityQuery('migration')
+      ->condition('migration_groups.*', $group_name);
+    $names = $query->execute();
+    // Order the migrations according to their dependencies.
+    $migrations = \Drupal::entityManager()->getStorage('migration')->loadMultiple($names);
+    $migration_ids = array();
+    foreach ($migrations as $migration) {
+      $migration_ids[] = $migration->id();
+    }
+
+    return $migration_ids;
   }
 }
