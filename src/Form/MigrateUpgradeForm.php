@@ -72,7 +72,8 @@ class MigrateUpgradeForm extends SiteSettingsForm {
 
     $form['database'] = array(
       '#type' => 'details',
-      '#title' => t('Database'),
+      '#title' => $this->t('Source database'),
+      '#description' => $this->t('Provide credentials for the database of the Drupal site you want to migrate.'),
       '#open' => TRUE,
       '#weight' => 1,
     );
