@@ -12,6 +12,7 @@ use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Installer\Form\SiteSettingsForm;
 use Drupal\Core\Database\Install\TaskException;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
 
 class MigrateUpgradeForm extends SiteSettingsForm {
   /**
@@ -193,7 +194,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
       $site_address_value = $form_state->getValue('site_address');
       if (!empty($site_address_value)) {
         $site_address = rtrim($site_address_value, '/') . '/';
-        $d6_file_config = \Drupal::config('migrate.migration.d6_file');
+        $d6_file_config = \Drupal::configFactory()->getEditable('migrate.migration.d6_file');
         $d6_file_config->set('destination.source_base_path', $site_address);
         $d6_file_config->save();
       }
