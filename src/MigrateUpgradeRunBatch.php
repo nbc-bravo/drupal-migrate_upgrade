@@ -7,10 +7,8 @@
 
 namespace Drupal\migrate_upgrade;
 
-use Drupal\Core\Database\Database;
 use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate\MigrateExecutable;
-use Drupal\migrate_upgrade\Form\MigrateUpgradeForm;
 use Drupal\Core\Url;
 
 class MigrateUpgradeRunBatch {
@@ -18,13 +16,10 @@ class MigrateUpgradeRunBatch {
   /**
    * @param $initial_ids
    *   The initial migration IDs.
-   * @param $db_spec
-   *   The database specification pointing to the old Drupal database.
    * @param $context
    *   The batch context.
    */
-  public static function run($initial_ids, $db_spec, &$context) {
-    Database::addConnectionInfo('migrate', 'default', $db_spec['database']);
+  public static function run($initial_ids, &$context) {
     if (!isset($context['sandbox']['migration_ids'])) {
       $context['sandbox']['max'] = count($initial_ids);
       $context['sandbox']['migration_ids'] = $initial_ids;
@@ -35,6 +30,8 @@ class MigrateUpgradeRunBatch {
       $messages = new MigrateMessageCapture();
       $executable = new MigrateExecutable($migration, $messages);
       $migration_name = $migration->label() ? $migration->label() : $migration_id;
+      \Drupal::logger('migrate_upgrade')->notice('Importing @migration',
+                         array('@migration' => $migration_name));
       $migration_status = $executable->import();
       switch ($migration_status) {
         case MigrationInterface::RESULT_COMPLETED:

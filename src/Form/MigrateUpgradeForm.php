@@ -184,19 +184,27 @@ class MigrateUpgradeForm extends SiteSettingsForm {
       $migration_ids = $this->getDestinationIds($drupal_version);
       if (!empty($migration_ids)) {
         $form_state->setValue('migration_ids', $migration_ids);
+        // Write the database info to the active configuration.
+        // @todo: When https://www.drupal.org/node/2302307 is done, just
+        // store the database info in the group.
+        foreach ($migration_ids as $migration_id) {
+          $config = \Drupal::configFactory()->getEditable('migrate.migration.' . $migration_id);
+          $config->set('source.key', 'migrate' . $drupal_version);
+          $config->set('source.database', $database);
+          if ($migration_id == 'd6_file') {
+            // Configure the file migration so it can find the files.
+            // @todo: Handle D7.
+            $site_address_value = $form_state->getValue('site_address');
+            if (!empty($site_address_value)) {
+              $site_address = rtrim($site_address_value, '/') . '/';
+              $config->set('destination.source_base_path', $site_address);
+            }
+          }
+          $config->save();
+        }
       }
       else {
         $form_state->setErrorByName(NULL, t('Upgrade from this version of Drupal is not supported.'));
-      }
-
-      // Configure the file migration so it can find the files.
-      // @todo: Handle D7.
-      $site_address_value = $form_state->getValue('site_address');
-      if (!empty($site_address_value)) {
-        $site_address = rtrim($site_address_value, '/') . '/';
-        $d6_file_config = \Drupal::configFactory()->getEditable('migrate.migration.d6_file');
-        $d6_file_config->set('destination.source_base_path', $site_address);
-        $d6_file_config->save();
       }
     }
   }
@@ -213,7 +221,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
       'progress_message' => '',
       'operations' => array(
         array(array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'),
-              array($form_state->getValue('migration_ids'), $form_state->getStorage('database'))),
+              array($form_state->getValue('migration_ids'))),
       ),
       'finished' => array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch',
                           'finished'),
