@@ -7,12 +7,12 @@
 
 namespace Drupal\migrate_upgrade\Form;
 
+use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Database;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Installer\Form\SiteSettingsForm;
 use Drupal\Core\Database\Install\TaskException;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Config\ConfigFactoryInterface;
 
 class MigrateUpgradeForm extends SiteSettingsForm {
   /**
@@ -160,51 +160,46 @@ class MigrateUpgradeForm extends SiteSettingsForm {
         return;
       }
 
-      $drupal_version = NULL;
-      if (!$connection->schema()->tableExists('node')) {
-        $form_state->setErrorByName(NULL, t('Source database does not ' .
-          'contain a Drupal installation.'));
-      }
-      // Note we check D8 first, because it's reintroduced the menu_router
-      // table we have used as the signature of D6.
-      elseif ($connection->schema()->tableExists('key_value')) {
-        $form_state->setErrorByName(NULL, t('Upgrade from this version ' .
-                  'of Drupal is not supported.'));
-      }
-      elseif ($connection->schema()->tableExists('filter_format')) {
-        $drupal_version = 7;
-      }
-      elseif ($connection->schema()->tableExists('menu_router')) {
-        $drupal_version = 6;
-      }
-      else {
-        $form_state->setErrorByName(NULL, t('Upgrade from this version of Drupal is not supported.'));
-      }
+      $drupal_version = self::detectDrupalVersion($connection);
+      if ($drupal_version) {
+        $migration_ids = $this->getDestinationIds($drupal_version);
+        if (!empty($migration_ids)) {
+          $form_state->setValue('migration_ids', $migration_ids);
+        }
+        else {
+          $form_state->setErrorByName(NULL, t('Upgrade from version !version of Drupal is not supported.',
+            array('!version' => $drupal_version)));
+        }
 
-      $migration_ids = $this->getDestinationIds($drupal_version);
-      if (!empty($migration_ids)) {
-        $form_state->setValue('migration_ids', $migration_ids);
-        // Write the database info to the active configuration.
-        // @todo: When https://www.drupal.org/node/2302307 is done, just
-        // store the database info in the group.
-        foreach ($migration_ids as $migration_id) {
-          $config = \Drupal::configFactory()->getEditable('migrate.migration.' . $migration_id);
-          $config->set('source.key', 'migrate' . $drupal_version);
-          $config->set('source.database', $database);
-          if ($migration_id == 'd6_file') {
-            // Configure the file migration so it can find the files.
-            // @todo: Handle D7.
-            $site_address_value = $form_state->getValue('site_address');
-            if (!empty($site_address_value)) {
-              $site_address = rtrim($site_address_value, '/') . '/';
-              $config->set('destination.source_base_path', $site_address);
+        $migration_ids = $this->getDestinationIds($drupal_version);
+        if (!empty($migration_ids)) {
+          $form_state->setValue('migration_ids', $migration_ids);
+          // Write the database info to the active configuration.
+          // @todo: When https://www.drupal.org/node/2302307 is done, just
+          // store the database info in the group.
+          foreach ($migration_ids as $migration_id) {
+            $config = \Drupal::configFactory()
+                             ->getEditable('migrate.migration.' . $migration_id);
+            $config->set('source.key', 'migrate' . $drupal_version);
+            $config->set('source.database', $database);
+            if ($migration_id == 'd6_file') {
+              // Configure the file migration so it can find the files.
+              // @todo: Handle D7.
+              $site_address_value = $form_state->getValue('site_address');
+              if (!empty($site_address_value)) {
+                $site_address = rtrim($site_address_value, '/') . '/';
+                $config->set('destination.source_base_path', $site_address);
+              }
             }
+            $config->save();
           }
-          $config->save();
+        }
+        else {
+          $form_state->setErrorByName(NULL, t('Upgrade from this version of Drupal is not supported.'));
         }
       }
       else {
-        $form_state->setErrorByName(NULL, t('Upgrade from this version of Drupal is not supported.'));
+        $form_state->setErrorByName(NULL, t('Source database does not contain a recognizable Drupal version.'));
       }
     }
   }
@@ -249,6 +244,39 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     // This apparently contains a PDOStatement somewhere.
     unset($this->storage);
     return parent::__sleep();
+  }
+
+  /**
+   * Determine what version of Drupal the source database contains, based on
+   * what tables are present.
+   *
+   * @param \Drupal\Core\Database\Connection $connection
+   *
+   * @return int|null
+   */
+  static public function detectDrupalVersion(Connection $connection) {
+    // Going backwards, we look for a table name first introduced to core in
+    // that version.
+    if ($connection->schema()->tableExists('key_value')) {
+      $drupal_version = 8;
+    }
+    elseif ($connection->schema()->tableExists('filter_format')) {
+      $drupal_version = 7;
+    }
+    elseif ($connection->schema()->tableExists('menu_router')) {
+      $drupal_version = 6;
+    }
+    elseif ($connection->schema()->tableExists('blocks_roles')) {
+      $drupal_version = 5;
+    }
+    elseif ($connection->schema()->tableExists('node_revisions')) {
+      $drupal_version = 4.7;
+    }
+    // 4.7 is plenty far enough back, thank you very much.
+    else {
+      $drupal_version = NULL;
+    }
+    return $drupal_version;
   }
 
   /**
