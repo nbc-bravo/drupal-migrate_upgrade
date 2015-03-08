@@ -13,6 +13,7 @@ use Drupal\migrate\MigrateMessageInterface;
  * Defines a migrate message class.
  */
 class MigrateMessageCapture implements MigrateMessageInterface {
+
   /**
    * Array of recorded messages.
    *
@@ -42,4 +43,5 @@ class MigrateMessageCapture implements MigrateMessageInterface {
   public function getMessages() {
     return $this->messages;
   }
+
 }
