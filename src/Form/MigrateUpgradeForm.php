@@ -124,6 +124,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     Database::addConnectionInfo('migrate', 'default', $database);
     $form_state->setStorage(array('database' => $database));
 
+    // The easiest way to know if the connection works is to just try connect.
     try  {
       $connection = Database::getConnection('default', 'migrate');
     }
@@ -172,7 +173,6 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
-
     $batch = array(
       'title' => $this->t('Running migrations'),
       'progress_message' => '',
@@ -210,11 +210,19 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    */
   protected function getMigrationIds($drupal_version) {
     $group_name = 'Drupal ' . $drupal_version;
-    $migrations = \Drupal::entityQuery('migration')
+    $migration_ids = \Drupal::entityQuery('migration')
       ->condition('migration_groups.*', $group_name)
       ->execute();
 
-    return array_values($migrations);
+    // We need the migration ids in order because they're passed directly to the
+    // batch runner which loads one migration at a time.
+    $migrations = entity_load_multiple('migration', $migration_ids);
+    $ordered_ids = [];
+    foreach ($migrations as $migration) {
+      $ordered_ids[] = $migration->id();
+    }
+
+    return $ordered_ids;
   }
 
   /**
