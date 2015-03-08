@@ -135,7 +135,7 @@ class MigrateUpgradeRunBatch {
     }
 
     if (\Drupal::moduleHandler()->moduleExists('dblog')) {
-      $url = new URL('migrate_upgrade.log');
+      $url = Url::fromRoute('migrate_upgrade.log');
       drupal_set_message(\Drupal::l(t('Review the detailed migration log'), $url), $status_type);
     }
   }
