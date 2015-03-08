@@ -167,7 +167,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
           $form_state->setValue('migration_ids', $migration_ids);
         }
         else {
-          $form_state->setErrorByName(NULL, t('Upgrade from version !version of Drupal is not supported.',
+          $form_state->setErrorByName(NULL, $this->t('Upgrade from version !version of Drupal is not supported.',
             array('!version' => $drupal_version)));
         }
 
@@ -195,11 +195,11 @@ class MigrateUpgradeForm extends SiteSettingsForm {
           }
         }
         else {
-          $form_state->setErrorByName(NULL, t('Upgrade from this version of Drupal is not supported.'));
+          $form_state->setErrorByName(NULL, $this->t('Upgrade from this version of Drupal is not supported.'));
         }
       }
       else {
-        $form_state->setErrorByName(NULL, t('Source database does not contain a recognizable Drupal version.'));
+        $form_state->setErrorByName(NULL, $this->t('Source database does not contain a recognizable Drupal version.'));
       }
     }
   }
@@ -213,7 +213,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     include_once DRUPAL_ROOT . '/core/includes/install.inc';
 
     $batch = array(
-      'title' => t('Running migrations'),
+      'title' => $this->t('Running migrations'),
       'progress_message' => '',
       'operations' => array(
         array(array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'),
