@@ -123,7 +123,14 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     // on the form state.
     Database::addConnectionInfo('migrate', 'default', $database);
     $form_state->setStorage(array('database' => $database));
-    $connection = Database::getConnection('default', 'migrate');
+
+    try  {
+      $connection = Database::getConnection('default', 'migrate');
+    }
+    catch (\Exception $e) {
+      $form_state->setErrorByName(NULL, $this->t($e->getMessage()));
+      return;
+    }
 
     // Make sure that we can detect the drupal version.
     if (!$drupal_version = $this->getLegacyDrupalVersion($connection)) {
