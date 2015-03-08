@@ -160,7 +160,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
         return;
       }
 
-      $drupal_version = self::getLegacyDrupalVersion($connection);
+      $drupal_version = $this->getLegacyDrupalVersion($connection);
       if ($drupal_version) {
         $migration_ids = $this->getDestinationIds($drupal_version);
         if (!empty($migration_ids)) {
@@ -208,6 +208,9 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
+
+    drupal_set_message("DONE");
+    return;
 
     // Make sure the install API is available.
     include_once DRUPAL_ROOT . '/core/includes/install.inc';
@@ -257,7 +260,8 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    */
   protected function getLegacyDrupalVersion(Connection $connection) {
     // @TODO, this shouldn't even be on a form.
-    return substr($connection->query('SELECT schema_version FROM {system} WHERE name = :module', [':module' => 'system'])->fetchCol(), 0, 1);
+    $version_string = $connection->query('SELECT schema_version FROM {system} WHERE name = :module', [':module' => 'system'])->fetchField();
+    return substr($version_string, 0, 1);
   }
 
   /**
