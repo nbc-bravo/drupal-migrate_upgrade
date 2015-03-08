@@ -33,7 +33,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
 
     $form['source'] = array(
       '#type' => 'details',
-      '#title' => t('Source site'),
+      '#title' => $this->t('Source site'),
       '#open' => TRUE,
       '#weight' => 0,
     );
@@ -47,7 +47,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     );
     $form['files'] = array(
       '#type' => 'details',
-      '#title' => t('Files'),
+      '#title' => $this->t('Files'),
       '#open' => TRUE,
       '#weight' => 2,
     );
