@@ -75,10 +75,8 @@ class MigrateUpgradeRunBatch {
         $context['message'] .= "<br />\n" . $message;
       }
 
-      // @TODO, why would we call ->import again, can we not just use the
-      // $migration_status variable?
-      if ($executable->import() != MigrationInterface::RESULT_INCOMPLETE) {
-        // Unless we're continuing on with this migration, take it off the list.
+      // Unless we're continuing on with this migration, take it off the list.
+      if ($migration_status != MigrationInterface::RESULT_INCOMPLETE) {
         array_shift($context['sandbox']['migration_ids']);
       }
     }
