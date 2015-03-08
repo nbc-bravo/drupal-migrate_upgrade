@@ -26,6 +26,7 @@ class MigrateUpgradeRunBatch {
       $context['results']['failures'] = 0;
       $context['results']['successes'] = 0;
     }
+
     $migration_id = reset($context['sandbox']['migration_ids']);
     $migration = entity_load('migration', $migration_id);
     if ($migration) {
@@ -42,7 +43,7 @@ class MigrateUpgradeRunBatch {
       switch ($migration_status) {
         case MigrationInterface::RESULT_COMPLETED:
           $context['message'] = t('Imported @migration', array('@migration' => $migration_name));
-          $context['results']['failures']++;
+          $context['results']['successes']++;
           static::logger()->notice('Imported @migration', array('@migration' => $migration_name));
           break;
 
@@ -56,7 +57,7 @@ class MigrateUpgradeRunBatch {
 
         case MigrationInterface::RESULT_FAILED:
           $context['message'] = t('Import of @migration failed', array('@migration' => $migration_name));
-          $context['results']['successes']++;
+          $context['results']['failures']++;
           static::logger()->error('Import of @migration failed', array('@migration' => $migration_name));
           break;
 
@@ -84,8 +85,6 @@ class MigrateUpgradeRunBatch {
       array_shift($context['sandbox']['migration_ids']);
     }
 
-    // @TODO, does this work when you have disabled migrations? max never gets
-    // updated after the first run.
     $context['finished'] = 1 - count($context['sandbox']['migration_ids']) / $context['sandbox']['max'];
   }
 
