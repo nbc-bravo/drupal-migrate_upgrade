@@ -36,9 +36,17 @@ class MigrateUpgradeRunBatch {
       // @TODO, if label isn't required we could implement this logic on the
       // migration entity itself.
       $migration_name = $migration->label() ? $migration->label() : $migration_id;
-
       static::logger()->notice('Importing @migration', array('@migration' => $migration_name));
-      $migration_status = $executable->import();
+
+      try  {
+        $migration_status = $executable->import();
+      }
+      catch (\Exception $e) {
+        // PluginNotFoundException is when the D8 module is disabled, maybe that
+        // should be a RequirementsException instead.
+        static::logger()->error($e->getMessage());
+        $migration_status = MigrationInterface::RESULT_FAILED;
+      }
 
       switch ($migration_status) {
         case MigrationInterface::RESULT_COMPLETED:
@@ -125,18 +133,16 @@ class MigrateUpgradeRunBatch {
     if ($failures > 0) {
       drupal_set_message(t('@count failed', array('@count' => $translation->formatPlural($failures, '1 migration', '@count migrations'))), 'error');
       drupal_set_message(t('Import process not completed'), 'error');
-      $status_type = 'error';
     }
     else {
       // Everything went off without a hitch. We may not have had successes but
       // we didn't have failures so this is fine.
       drupal_set_message(t('Congratulations, you upgraded Drupal!'));
-      $status_type = 'status';
     }
 
     if (\Drupal::moduleHandler()->moduleExists('dblog')) {
       $url = Url::fromRoute('migrate_upgrade.log');
-      drupal_set_message(\Drupal::l(t('Review the detailed migration log'), $url), $status_type);
+      drupal_set_message(\Drupal::l(t('Review the detailed migration log'), $url), $failures ? 'error' : 'status');
     }
   }
 
