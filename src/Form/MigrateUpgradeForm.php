@@ -9,16 +9,10 @@ namespace Drupal\migrate_upgrade\Form;
 
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Database;
-use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Installer\Form\SiteSettingsForm;
-use Drupal\Core\Database\Install\TaskException;
 use Drupal\Core\Form\FormStateInterface;
 
 class MigrateUpgradeForm extends SiteSettingsForm {
-  /**
-   * @var \Drupal\Core\Entity\EntityStorageInterface
-   */
-  protected $storage;
 
   /**
    * {@inheritdoc}
@@ -43,7 +37,6 @@ class MigrateUpgradeForm extends SiteSettingsForm {
       '#open' => TRUE,
       '#weight' => 0,
     );
-
     $form['source']['site_address'] = array(
       '#type' => 'textfield',
       '#title' => $this->t('Source site address'),
@@ -52,14 +45,12 @@ class MigrateUpgradeForm extends SiteSettingsForm {
         'site (e.g. "http://www.example.com"). This address will be used to ' .
         'retrieve any public files from the site.'),
     );
-
     $form['files'] = array(
       '#type' => 'details',
       '#title' => t('Files'),
       '#open' => TRUE,
       '#weight' => 2,
     );
-
     $form['files']['private_file_directory'] = array(
       '#type' => 'textfield',
       '#title' => $this->t('Private file directory'),
@@ -69,7 +60,6 @@ class MigrateUpgradeForm extends SiteSettingsForm {
         'Enter the address of the directory (e.g., "/home/legacy_files/private" ' .
         'or "http://private.example.com/legacy_files/private") here.'),
     );
-
     $form['database'] = array(
       '#type' => 'details',
       '#title' => $this->t('Source database'),
@@ -78,15 +68,18 @@ class MigrateUpgradeForm extends SiteSettingsForm {
       '#weight' => 1,
     );
 
+    // Copy the values from the parent form into our structure.
     $form['database']['driver'] = $form['driver'];
-    unset($form['driver']);
-    unset($form['settings']['mysql']['database']['#default_value']);
     $form['database']['settings'] = $form['settings'];
-    unset($form['settings']);
     $form['database']['settings']['mysql']['host'] = $form['database']['settings']['mysql']['advanced_options']['host'];
-    unset($form['database']['settings']['mysql']['advanced_options']['host']);
     $form['database']['settings']['mysql']['host']['#title'] = 'Database host';
     $form['database']['settings']['mysql']['host']['#weight'] = 0;
+
+    // Remove the values from the parent form.
+    unset($form['driver']);
+    unset($form['database']['settings']['mysql']['database']['#default_value']);
+    unset($form['settings']);
+    unset($form['database']['settings']['mysql']['advanced_options']['host']);
 
     // Rename the submit button.
     $form['actions']['save']['#value'] = $this->t('Perform upgrade');
@@ -104,103 +97,67 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    * {@inheritdoc}
    */
   public function validateForm(array &$form, FormStateInterface $form_state) {
+
+    // Retrieve the database driver from the form, use reflection to get the
+    // namespace and then construct a valid database array the same as in
+    // settings.php.
     $driver = $form_state->getValue('driver');
-    if (isset($driver)) {
-      // Ideally we would just call parent::validateForm(), but it will
-      // add the source database as the 'default' connection and chaos will
-      // ensue. We must replicate the logic here, setting the 'migrate'
-      // connection instead.
+    $drivers = $this->getDatabaseTypes();
+    $reflection = new \ReflectionClass($drivers[$driver]);
+    $install_namespace = $reflection->getNamespaceName();
 
-      // Make sure the install API is available.
-      include_once DRUPAL_ROOT . '/core/includes/install.core.inc';
+    $database = $form_state->getValue($driver);
+    // Cut the trailing \Install from namespace.
+    $database['namespace'] = substr($install_namespace, 0, strrpos($install_namespace, '\\'));
+    $database['driver'] = $driver;
 
-      $database = $form_state->getValue($driver);
-      $drivers = drupal_get_database_types();
-      $reflection = new \ReflectionClass($drivers[$driver]);
-      $install_namespace = $reflection->getNamespaceName();
-      // Cut the trailing \Install from namespace.
-      $database['namespace'] = substr($install_namespace, 0, strrpos($install_namespace, '\\'));
-      $database['driver'] = $driver;
-      $errors = array();
-
-      // Check database type.
-      $database_types = drupal_get_database_types();
-      // Run driver specific validation
-      $errors += $database_types[$driver]->validateDatabaseSettings($database);
-      if (empty($errors)) {
-        // Run tasks associated with the database type. Any errors are caught in the
-        // calling function.
-        Database::addConnectionInfo('migrate', 'default', $database);
-        try {
-          db_run_tasks($driver);
-        }
-        catch (TaskException $e) {
-          // These are generic errors, so we do not have any specific key of the
-          // database connection array to attach them to; therefore, we just put
-          // them in the error array with standard numeric keys.
-          $errors[$driver . '][0'] = $e->getMessage();
-        }
-        $form_state->setStorage(array('database' => $database));
-        $errors = install_database_errors($database, $form_state->getValue('settings_file'));
-      }
+    // Validate the driver settings and just end here if we have any issues.
+    if ($errors = $drivers[$driver]->validateDatabaseSettings($database)) {
       foreach ($errors as $name => $message) {
         $form_state->setErrorByName($name, $message);
       }
+      return;
+    }
 
-      // Don't go any farther if we have errors with the database configuration.
-      if (!empty($errors)) {
-        return;
-      }
+    // OK, the connection is good, add it to the global connections and store
+    // on the form state.
+    Database::addConnectionInfo('migrate', 'default', $database);
+    $form_state->setStorage(array('database' => $database));
+    $connection = Database::getConnection('default', 'migrate');
 
-      try {
-        $connection = Database::getConnection('default', 'migrate');
-      }
-      catch (\Exception $e) {
-        $form_state->setErrorByName(NULL, $e->getMessage());
-        return;
-      }
+    // Make sure that we can detect the drupal version.
+    if (!$drupal_version = $this->getLegacyDrupalVersion($connection)) {
+      $form_state->setErrorByName(NULL, $this->t('Source database does not contain a recognizable Drupal version.'));
+      return;
+    }
 
-      $drupal_version = $this->getLegacyDrupalVersion($connection);
-      if ($drupal_version) {
-        $migration_ids = $this->getDestinationIds($drupal_version);
-        if (!empty($migration_ids)) {
-          $form_state->setValue('migration_ids', $migration_ids);
-        }
-        else {
-          $form_state->setErrorByName(NULL, $this->t('Upgrade from version !version of Drupal is not supported.',
-            array('!version' => $drupal_version)));
-        }
+    // Now lets make sure have at least 1 migration for this version.
+    if (!$migration_ids = $this->getMigrationIds($drupal_version)) {
+      $form_state->setErrorByName(NULL, $this->t('Upgrade from version !version of Drupal is not supported.', array('!version' => $drupal_version)));
+      return;
+    }
+    // Store the retrieved migration ids on the form state?
+    $form_state->setValue('migration_ids', $migration_ids);
 
-        $migration_ids = $this->getDestinationIds($drupal_version);
-        if (!empty($migration_ids)) {
-          $form_state->setValue('migration_ids', $migration_ids);
-          // Write the database info to the active configuration.
-          // @todo: When https://www.drupal.org/node/2302307 is done, just
-          // store the database info in the group.
-          foreach ($migration_ids as $migration_id) {
-            $config = \Drupal::configFactory()
-                             ->getEditable('migrate.migration.' . $migration_id);
-            $config->set('source.key', 'migrate' . $drupal_version);
-            $config->set('source.database', $database);
-            if ($migration_id == 'd6_file') {
-              // Configure the file migration so it can find the files.
-              // @todo: Handle D7.
-              $site_address_value = $form_state->getValue('site_address');
-              if (!empty($site_address_value)) {
-                $site_address = rtrim($site_address_value, '/') . '/';
-                $config->set('destination.source_base_path', $site_address);
-              }
-            }
-            $config->save();
-          }
-        }
-        else {
-          $form_state->setErrorByName(NULL, $this->t('Upgrade from this version of Drupal is not supported.'));
+    foreach ($migration_ids as $migration_id) {
+      // Set some per config migration settings. Should we be using
+      // $config->setSettingsOverride(). Also, Drush is doing something very
+      // similar to this right now. Maybe we can share some code.
+      $config = \Drupal::configFactory()
+        ->getEditable('migrate.migration.' . $migration_id)
+        // @TODO What is this for?
+        ->set('source.key', 'migrate' . $drupal_version)
+        ->set('source.database', $database);
+
+      if ($migration_id === 'd6_file') {
+        // Configure the file migration so it can find the files.
+        // @todo: Handle D7.
+        if ($site_address_value = $form_state->getValue('site_address')) {
+          $site_address = rtrim($site_address_value, '/') . '/';
+          $config->set('destination.source_base_path', $site_address);
         }
       }
-      else {
-        $form_state->setErrorByName(NULL, $this->t('Source database does not contain a recognizable Drupal version.'));
-      }
+      $config->save();
     }
   }
 
@@ -209,45 +166,16 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
 
-    drupal_set_message("DONE");
-    return;
-
-    // Make sure the install API is available.
-    include_once DRUPAL_ROOT . '/core/includes/install.inc';
-
     $batch = array(
       'title' => $this->t('Running migrations'),
       'progress_message' => '',
       'operations' => array(
-        array(array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'),
-              array($form_state->getValue('migration_ids'))),
+        array(array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'), array($form_state->getValue('migration_ids'))),
       ),
-      'finished' => array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch',
-                          'finished'),
+      'finished' => array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'finished'),
     );
     batch_set($batch);
     $form_state->setRedirect('<front>');
-  }
-
-  /**
-   * @return EntityStorageInterface
-   */
-  protected function storage() {
-    if (!isset($this->storage)) {
-      $this->storage = \Drupal::entityManager()->getStorage('migration');
-    }
-    return $this->storage;
-  }
-
-  /**
-   * Returns the properties to be serialized
-   *
-   * @return array
-   */
-  public function __sleep() {
-    // This apparently contains a PDOStatement somewhere.
-    unset($this->storage);
-    return parent::__sleep();
   }
 
   /**
@@ -273,18 +201,25 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    * @return array
    *   An array of migration names.
    */
-  protected function getDestinationIds($drupal_version) {
+  protected function getMigrationIds($drupal_version) {
     $group_name = 'Drupal ' . $drupal_version;
-    $query = \Drupal::entityQuery('migration')
-      ->condition('migration_groups.*', $group_name);
-    $names = $query->execute();
-    // Order the migrations according to their dependencies.
-    $migrations = \Drupal::entityManager()->getStorage('migration')->loadMultiple($names);
-    $migration_ids = array();
-    foreach ($migrations as $migration) {
-      $migration_ids[] = $migration->id();
-    }
+    $migrations = \Drupal::entityQuery('migration')
+      ->condition('migration_groups.*', $group_name)
+      ->execute();
 
-    return $migration_ids;
+    return array_values($migrations);
   }
+
+  /**
+   * Returns all supported database driver installer objects.
+   *
+   * @return \Drupal\Core\Database\Install\Tasks[]
+   *   An array of available database driver installer objects.
+   */
+  protected function getDatabaseTypes() {
+    // Make sure the install API is available.
+    include_once DRUPAL_ROOT . '/core/includes/install.core.inc';
+    return drupal_get_database_types();
+  }
+
 }
