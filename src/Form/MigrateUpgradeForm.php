@@ -160,7 +160,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
         return;
       }
 
-      $drupal_version = self::detectDrupalVersion($connection);
+      $drupal_version = self::getLegacyDrupalVersion($connection);
       if ($drupal_version) {
         $migration_ids = $this->getDestinationIds($drupal_version);
         if (!empty($migration_ids)) {
@@ -208,6 +208,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
+
     // Make sure the install API is available.
     include_once DRUPAL_ROOT . '/core/includes/install.inc';
 
@@ -254,29 +255,9 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    *
    * @return int|null
    */
-  static public function detectDrupalVersion(Connection $connection) {
-    // Going backwards, we look for a table name first introduced to core in
-    // that version.
-    if ($connection->schema()->tableExists('key_value')) {
-      $drupal_version = 8;
-    }
-    elseif ($connection->schema()->tableExists('filter_format')) {
-      $drupal_version = 7;
-    }
-    elseif ($connection->schema()->tableExists('menu_router')) {
-      $drupal_version = 6;
-    }
-    elseif ($connection->schema()->tableExists('blocks_roles')) {
-      $drupal_version = 5;
-    }
-    elseif ($connection->schema()->tableExists('node_revisions')) {
-      $drupal_version = 4.7;
-    }
-    // 4.7 is plenty far enough back, thank you very much.
-    else {
-      $drupal_version = NULL;
-    }
-    return $drupal_version;
+  protected function getLegacyDrupalVersion(Connection $connection) {
+    // @TODO, this shouldn't even be on a form.
+    return substr($connection->query('SELECT schema_version FROM {system} WHERE name = :module', [':module' => 'system'])->fetchCol(), 0, 1);
   }
 
   /**
