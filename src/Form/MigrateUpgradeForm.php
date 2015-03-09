@@ -194,6 +194,10 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    * @return int|null
    */
   protected function getLegacyDrupalVersion(Connection $connection) {
+
+    // @TODO, add support for D8.
+    // SELECT * FROM `key_value` WHERE collection like 'system.schema' and name = 'system'
+
     // @TODO, this shouldn't even be on a form.
     $version_string = $connection->query('SELECT schema_version FROM {system} WHERE name = :module', [':module' => 'system'])->fetchField();
     return substr($version_string, 0, 1);
