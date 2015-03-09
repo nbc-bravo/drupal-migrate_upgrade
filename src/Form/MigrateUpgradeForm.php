@@ -194,13 +194,23 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    * @return int|null
    */
   protected function getLegacyDrupalVersion(Connection $connection) {
-
-    // @TODO, add support for D8.
-    // SELECT * FROM `key_value` WHERE collection like 'system.schema' and name = 'system'
-
     // @TODO, this shouldn't even be on a form.
-    $version_string = $connection->query('SELECT schema_version FROM {system} WHERE name = :module', [':module' => 'system'])->fetchField();
-    return substr($version_string, 0, 1);
+
+    $version_string = FALSE;
+
+    // Detect Drupal 6/7.
+    if ($connection->schema()->tableExists('system')) {
+      $version_string = $connection->query('SELECT schema_version FROM {system} WHERE name = :module', [':module' => 'system'])->fetchField();
+    }
+    // Detect Drupal 8.
+    elseif ($connection->schema()->tableExists('key_value')) {
+      $result = $connection->query("SELECT value FROM {key_value} WHERE collection = :system_schema  and name = :module", [':system_schema' => 'system.schema', ':module' => 'system'])->fetchField();
+      $version_string = unserialize($result);
+    }
+
+    // @TODO I wonder if a hook here would help contrib support other version?
+
+    return $version_string ? substr($version_string, 0, 1) : FALSE;
   }
 
   /**
