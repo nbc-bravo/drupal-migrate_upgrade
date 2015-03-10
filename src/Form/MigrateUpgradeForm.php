@@ -202,7 +202,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     if ($connection->schema()->tableExists('system')) {
       $version_string = $connection->query('SELECT schema_version FROM {system} WHERE name = :module', [':module' => 'system'])->fetchField();
     }
-    // Detect Drupal 8.
+    // Detect Drupal 8. @TODO, do we even need this in Drupal 8?
     elseif ($connection->schema()->tableExists('key_value')) {
       $result = $connection->query("SELECT value FROM {key_value} WHERE collection = :system_schema  and name = :module", [':system_schema' => 'system.schema', ':module' => 'system'])->fetchField();
       $version_string = unserialize($result);
