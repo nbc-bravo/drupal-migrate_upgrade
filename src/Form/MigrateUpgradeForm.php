@@ -157,7 +157,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
         ->set('source.key', 'migrate' . $drupal_version)
         ->set('source.database', $database);
 
-      if ($migration_id === 'd6_file') {
+      if ($migration_id === 'd6_file' || $migration_id === 'd6_user_picture_file') {
         // Configure the file migration so it can find the files.
         // @todo: Handle D7.
         if ($site_address_value = $form_state->getValue('site_address')) {
