@@ -9,10 +9,11 @@ namespace Drupal\migrate_upgrade\Form;
 
 use Drupal\Core\Installer\Form\SiteSettingsForm;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\migrate_upgrade\MigrateUpgradeTrait;
 
 class MigrateUpgradeForm extends SiteSettingsForm {
 
-  use \Drupal\migrate_upgrade\MigrateUpgradeTrait;
+  use MigrateUpgradeTrait;
 
   /**
    * {@inheritdoc}
