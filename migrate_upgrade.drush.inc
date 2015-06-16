@@ -16,7 +16,7 @@ function migrate_upgrade_drush_command() {
     'options' => array(
       'legacy-db-url' => 'A Drupal 6 style database URL. Required.',
       'legacy-root' => 'Site address or root of legacy Drupal installation',
-      'no-import' => 'Set up the appropriate migrations but do not run the import',
+      'configure-only' => 'Set up the appropriate migrations but do not run the import',
     ),
     'examples' => array(
       'migrate-upgrade --legacy-db-url=\'mysql://root:pass@127.0.0.1/d6\'' => 'Import a Drupal 6 database',
@@ -28,15 +28,16 @@ function migrate_upgrade_drush_command() {
 }
 
 /**
- * @param string $migration_names
+ * Execute the upgrade command, configuring the necessary migrations and
+ * optionally perform the imports.
  */
 function drush_migrate_upgrade() {
-  $no_import = drush_get_option('no-import');
+  $configure_only = drush_get_option('configure-only');
 
   $runner = new MigrateUpgradeDrushRunner();
 
   $runner->configure();
-  if (!$no_import) {
+  if (!$configure_only) {
     $runner->import();
   }
 }
