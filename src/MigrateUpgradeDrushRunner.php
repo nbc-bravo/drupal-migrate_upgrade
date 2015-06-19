@@ -8,7 +8,7 @@
 namespace Drupal\migrate_upgrade;
 use Drupal\migrate\MigrateExecutable;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
-use Drush\Migrate\DrushLogMigrateMessage;
+use Drupal\migrate_plus\DrushLogMigrateMessage;
 
 class MigrateUpgradeDrushRunner {
 

@@ -8,3 +8,4 @@ configure: migrate_upgrade.upgrade
 dependencies:
   - migrate
   - migrate_drupal
+  - migrate_plus
