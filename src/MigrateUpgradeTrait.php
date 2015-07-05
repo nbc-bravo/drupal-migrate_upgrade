@@ -9,6 +9,10 @@ namespace Drupal\migrate_upgrade;
 
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Database;
+use Drupal\migrate\Entity\Migration;
+use Drupal\migrate\Exception\RequirementsException;
+use Drupal\migrate\Plugin\RequirementsInterface;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 
 /**
  * Trait providing functionality to instantiate the appropriate migrations for
@@ -36,32 +40,47 @@ trait MigrateUpgradeTrait {
       throw new \Exception($this->t('Source database does not contain a recognizable Drupal version.'));
     }
 
-    // Now lets make sure have at least 1 migration for this version.
-    if (!$migration_ids = $this->getMigrationIds($drupal_version)) {
-      throw new \Exception($this->t('Upgrade from version !version of Drupal is not supported.', array('!version' => $drupal_version)));
-    }
+    $group_name = 'Drupal ' . $drupal_version;
 
-    foreach ($migration_ids as $migration_id) {
-      // Set some per config migration settings. Should we be using
-      // $config->setSettingsOverride()?
-      $config = \Drupal::configFactory()
-        ->getEditable('migrate.migration.' . $migration_id)
-        ->set('source.key', 'upgrade' . $drupal_version)
-        ->set('source.database', $database);
-
+    $migration_templates = \Drupal::service('migrate.template_storage')->findTemplatesByTag($group_name);
+    $migration_ids = [];
+    foreach ($migration_templates as $template) {
       // Configure file migrations so they can find the files.
-      // @todo: Handle D7.
-      if ($migration_id === 'd6_file' || $migration_id === 'd6_user_picture_file') {
+      if ($template['destination']['plugin'] == 'entity:file') {
         if ($site_address) {
           // Make sure we have a single trailing slash.
           $site_address = rtrim($site_address, '/') . '/';
-          $config->set('destination.source_base_path', $site_address);
+          $template['destination']['source_base_path'] = $site_address;
         }
       }
-      $config->save();
+      // @todo: Use a group to hold the db info, so we don't have to stuff it
+      // into every migration.
+      $template['source']['key'] = 'upgrade';
+      $template['source']['database'] = $database;
+
+      $migration_ids[] = $template['id'];
+      try {
+        $migration = Migration::create($template);
+        if ($migration->getSourcePlugin() instanceof RequirementsInterface) {
+          $migration->getSourcePlugin()->checkRequirements();
+        }
+        if ($migration->getDestinationPlugin() instanceof RequirementsInterface) {
+          $migration->getDestinationPlugin()->checkRequirements();
+        }
+        $migration->save();
+      }
+      // Migrations which are not applicable given the source and destination
+      // site configurations (e.g., what modules are enabled) will be silently
+      // ignored.
+      catch (RequirementsException $e) {
+      }
+      catch (PluginNotFoundException $e) {
+      }
     }
 
-    return $migration_ids;
+    // We need the migration ids in order because they're passed directly to the
+    // batch runner which loads one migration at a time.
+    return array_keys(entity_load_multiple('migration', $migration_ids));
   }
 
   /**
@@ -96,34 +115,6 @@ trait MigrateUpgradeTrait {
     // @TODO I wonder if a hook here would help contrib support other version?
 
     return $version_string ? substr($version_string, 0, 1) : FALSE;
-  }
-
-  /**
-   * Gets a list of candidate migrations for the Drupal version being imported.
-   *
-   * @param $drupal_version
-   *  Version number for filtering migrations.
-   *
-   * @return array
-   *   An array of migration names.
-   */
-  protected function getMigrationIds($drupal_version) {
-    $group_name = 'Drupal ' . $drupal_version;
-    // @todo: Should be replaced by a value on the source.
-    $migration_ids = \Drupal::entityQuery('migration')
-      ->condition('migration_tags.*', $group_name)
-      ->execute();
-
-    // We need the migration ids in order because they're passed directly to the
-    // batch runner which loads one migration at a time.
-    // @todo: To be replaced by templates.
-    $migrations = entity_load_multiple('migration', $migration_ids);
-    $ordered_ids = [];
-    foreach ($migrations as $migration) {
-      $ordered_ids[] = $migration->id();
-    }
-
-    return $ordered_ids;
   }
 
 }
