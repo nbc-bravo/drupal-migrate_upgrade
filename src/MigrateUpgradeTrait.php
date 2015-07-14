@@ -58,7 +58,6 @@ trait MigrateUpgradeTrait {
       $template['source']['key'] = 'upgrade';
       $template['source']['database'] = $database;
 
-      $migration_ids[] = $template['id'];
       try {
         $migration = Migration::create($template);
         if ($migration->getSourcePlugin() instanceof RequirementsInterface) {
@@ -68,6 +67,7 @@ trait MigrateUpgradeTrait {
           $migration->getDestinationPlugin()->checkRequirements();
         }
         $migration->save();
+        $migration_ids[] = $template['id'];
       }
       // Migrations which are not applicable given the source and destination
       // site configurations (e.g., what modules are enabled) will be silently
