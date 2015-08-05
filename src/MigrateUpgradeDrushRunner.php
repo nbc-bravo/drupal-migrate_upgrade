@@ -31,8 +31,6 @@ class MigrateUpgradeDrushRunner {
   public function configure() {
     $db_url = drush_get_option('legacy-db-url');
     $db_spec = drush_convert_db_from_db_url($db_url);
-    $db_prefix = drush_get_option('legacy-db-prefix');
-    $db_spec['prefix'] = $db_prefix;
 
     $this->migrationList = $this->configureMigrations($db_spec, drush_get_option('legacy-root'));
   }

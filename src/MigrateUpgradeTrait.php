@@ -11,6 +11,7 @@ use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Database;
 use Drupal\migrate\Entity\Migration;
 use Drupal\migrate\Exception\RequirementsException;
+use Drupal\migrate\MigrationBuilder;
 use Drupal\migrate\Plugin\RequirementsInterface;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 
@@ -42,24 +43,30 @@ trait MigrateUpgradeTrait {
 
     $group_name = 'Drupal ' . $drupal_version;
 
-    $migration_templates = \Drupal::service('migrate.template_storage')->findTemplatesByTag($group_name);
-    $migration_ids = [];
-    foreach ($migration_templates as $template) {
+    $template_storage = \Drupal::service('migrate.template_storage');
+    $migration_templates = $template_storage->findTemplatesByTag($group_name);
+    foreach ($migration_templates as $id => $template) {
       // Configure file migrations so they can find the files.
       if ($template['destination']['plugin'] == 'entity:file') {
         if ($site_address) {
           // Make sure we have a single trailing slash.
           $site_address = rtrim($site_address, '/') . '/';
-          $template['destination']['source_base_path'] = $site_address;
+          $migration_templates[$id]['destination']['source_base_path'] = $site_address;
         }
       }
       // @todo: Use a group to hold the db info, so we don't have to stuff it
       // into every migration.
-      $template['source']['key'] = 'upgrade';
-      $template['source']['database'] = $database;
+      $migration_templates[$id]['source']['key'] = 'upgrade';
+      $migration_templates[$id]['source']['database'] = $database;
+    }
 
+    /** @var \Drupal\migrate\MigrationBuilder $builder */
+    $builder = \Drupal::service('migrate.migration_builder');
+    $migrations = $builder->createMigrations($migration_templates, FALSE);
+
+    $migration_ids = [];
+    foreach ($migrations as $migration) {
       try {
-        $migration = Migration::create($template);
         if ($migration->getSourcePlugin() instanceof RequirementsInterface) {
           $migration->getSourcePlugin()->checkRequirements();
         }
@@ -67,7 +74,7 @@ trait MigrateUpgradeTrait {
           $migration->getDestinationPlugin()->checkRequirements();
         }
         $migration->save();
-        $migration_ids[] = $template['id'];
+        $migration_ids[] = $migration->id();
       }
       // Migrations which are not applicable given the source and destination
       // site configurations (e.g., what modules are enabled) will be silently
