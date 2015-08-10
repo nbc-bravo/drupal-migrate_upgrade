@@ -15,7 +15,8 @@ function migrate_upgrade_drush_command() {
     'description' => 'Perform one or more migration processes.',
     'options' => array(
       'legacy-db-url' => 'A Drupal 6 style database URL. Required.',
-      'legacy-root' => 'Site address or root of legacy Drupal installation',
+      'legacy-db-prefix' => 'Prefix of the legacy Drupal installation.',
+      'legacy-root' => 'Site address or root of the legacy Drupal installation',
       'configure-only' => 'Set up the appropriate migrations but do not run the import',
     ),
     'examples' => array(
