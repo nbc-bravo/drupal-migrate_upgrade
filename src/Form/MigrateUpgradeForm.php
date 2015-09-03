@@ -9,11 +9,16 @@ namespace Drupal\migrate_upgrade\Form;
 
 use Drupal\Core\Installer\Form\SiteSettingsForm;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\migrate_upgrade\MigrateUpgradeTrait;
+use Drupal\migrate_upgrade\MigrationCreationTrait;
 
+/**
+ * Form for performing direct site upgrades. Since we have the same need for
+ * obtaining (source) database credentials on the install process, we build off
+ * its form.
+ */
 class MigrateUpgradeForm extends SiteSettingsForm {
 
-  use MigrateUpgradeTrait;
+  use MigrationCreationTrait;
 
   /**
    * {@inheritdoc}
@@ -32,42 +37,12 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     $form = parent::buildForm($form, $form_state);
     $form['#title'] = $this->t('Drupal Upgrade: Source site information');
 
-    $form['source'] = array(
-      '#type' => 'details',
-      '#title' => $this->t('Source site'),
-      '#open' => TRUE,
-      '#weight' => 0,
-    );
-    $form['source']['site_address'] = array(
-      '#type' => 'textfield',
-      '#title' => $this->t('Source site address'),
-      '#default_value' => 'http://',
-      '#description' => $this->t('Enter the address of your current Drupal ' .
-        'site (e.g. "http://www.example.com"). This address will be used to ' .
-        'retrieve any public files from the site.'),
-    );
-    $form['files'] = array(
-      '#type' => 'details',
-      '#title' => $this->t('Files'),
-      '#open' => TRUE,
-      '#weight' => 2,
-    );
-    $form['files']['private_file_directory'] = array(
-      '#type' => 'textfield',
-      '#title' => $this->t('Private file directory'),
-      '#description' => $this->t('If you have private files on your current ' .
-        'Drupal site which you want imported, please copy the complete private ' .
-        'file directory to a place accessible by your new Drupal 8 web server. ' .
-        'Enter the address of the directory (e.g., "/home/legacy_files/private" ' .
-        'or "http://private.example.com/legacy_files/private") here.'),
-    );
-    $form['database'] = array(
+    $form['database'] = [
       '#type' => 'details',
       '#title' => $this->t('Source database'),
       '#description' => $this->t('Provide credentials for the database of the Drupal site you want to migrate.'),
       '#open' => TRUE,
-      '#weight' => 1,
-    );
+    ];
 
     // Copy the values from the parent form into our structure.
     $form['database']['driver'] = $form['driver'];
@@ -81,6 +56,26 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     unset($form['database']['settings']['mysql']['database']['#default_value']);
     unset($form['settings']);
     unset($form['database']['settings']['mysql']['advanced_options']['host']);
+
+    $form['source'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Source files'),
+      '#open' => TRUE,
+    ];
+    $form['source']['source_base_path'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Files directory'),
+      '#description' => $this->t('To import files from your current Drupal site, enter a local file directory containing your site (e.g. /var/www/docroot), or your site address (e.g. http://example.com).'),
+    ];
+
+/*
+    // @todo: Not yet implemented, depends on https://www.drupal.org/node/2547125.
+    $form['files']['private_file_directory'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Private file path'),
+      '#description' => $this->t('To import private files from your current Drupal site, enter a local file directory containing your files (e.g. /var/private_files).'),
+    ];
+*/
 
     // Rename the submit button.
     $form['actions']['save']['#value'] = $this->t('Perform upgrade');
@@ -120,8 +115,8 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     }
 
     try {
-      // Set up all the relevant migrations and get their IDs so we can run them.
-      $migration_ids = $this->configureMigrations($database, $form_state->getValue('site_address'));
+      // Create all the relevant migrations and get their IDs so we can run them.
+      $migration_ids = $this->createMigrations($database, $form_state->getValue('source_base_path'));
 
       // Store the retrieved migration ids on the form state.
       $form_state->setValue('migration_ids', $migration_ids);
@@ -135,14 +130,14 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
-    $batch = array(
+    $batch = [
       'title' => $this->t('Running migrations'),
       'progress_message' => '',
-      'operations' => array(
-        array(array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'), array($form_state->getValue('migration_ids'))),
-      ),
-      'finished' => array('Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'finished'),
-    );
+      'operations' => [
+        [['Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'], [$form_state->getValue('migration_ids')]],
+      ],
+      'finished' => ['Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'finished'],
+    ];
     batch_set($batch);
     $form_state->setRedirect('<front>');
   }

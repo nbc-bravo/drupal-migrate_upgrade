@@ -44,10 +44,10 @@ class MigrateUpgradeDrushRunner {
     $log = new DrushLogMigrateMessage();
     foreach ($this->migrationList as $migration_id) {
       $migration = entity_load('migration', $migration_id);
-      drush_print(dt('Importing !migration', array('!migration' => $migration_id)));
+      drush_print(dt('Importing !migration', ['!migration' => $migration_id]));
       $executable = new MigrateExecutable($migration, $log);
       // drush_op() provides --simulate support.
-      drush_op(array($executable, 'import'));
+      drush_op([$executable, 'import']);
     }
   }
 

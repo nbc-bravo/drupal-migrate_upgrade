@@ -1,12 +1,13 @@
-name: Migrate Upgrade
+name: Drupal Upgrade UI
 type: module
-description: 'UI for migration from older Drupal versions.'
-package: Core
+description: 'UI for direct upgrades from older Drupal versions.'
+package: Core (Experimental)
 version: VERSION
 core: 8.x
 configure: migrate_upgrade.upgrade
 dependencies:
   - migrate
   - migrate_drupal
+  - dblog
   - migrate_plus
   - migrate_tools

@@ -7,6 +7,7 @@
 
 namespace Drupal\migrate_upgrade;
 
+use Drupal\migrate\Entity\Migration;
 use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate\MigrateExecutable;
 use Drupal\Core\Url;
@@ -14,29 +15,32 @@ use Drupal\Core\Url;
 class MigrateUpgradeRunBatch {
 
   /**
+   * Run a single migration batch.
+   *
    * @param $initial_ids
-   *   The initial migration IDs.
+   *   The full set of migration IDs to import.
    * @param $context
    *   The batch context.
    */
   public static function run($initial_ids, &$context) {
     if (!isset($context['sandbox']['migration_ids'])) {
       $context['sandbox']['max'] = count($initial_ids);
+      $context['sandbox']['current'] = 1;
+      // migration_ids will be the list of IDs remaining to run.
       $context['sandbox']['migration_ids'] = $initial_ids;
+      $context['sandbox']['messages'] = [];
       $context['results']['failures'] = 0;
       $context['results']['successes'] = 0;
     }
 
     $migration_id = reset($context['sandbox']['migration_ids']);
-    $migration = entity_load('migration', $migration_id);
+    /** @var \Drupal\migrate\Entity\Migration $migration */
+    $migration = Migration::load($migration_id);
     if ($migration) {
       $messages = new MigrateMessageCapture();
       $executable = new MigrateExecutable($migration, $messages);
 
-      // @TODO, if label isn't required we could implement this logic on the
-      // migration entity itself.
       $migration_name = $migration->label() ? $migration->label() : $migration_id;
-      static::logger()->notice('Importing @migration', array('@migration' => $migration_name));
 
       try  {
         $migration_status = $executable->import();
@@ -50,28 +54,32 @@ class MigrateUpgradeRunBatch {
 
       switch ($migration_status) {
         case MigrationInterface::RESULT_COMPLETED:
-          $context['message'] = t('Imported @migration', array('@migration' => $migration_name));
+          $context['sandbox']['messages'][] = t('Imported @migration (@current of @max)',
+            ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
+             '@max' => $context['sandbox']['max']]);
           $context['results']['successes']++;
-          static::logger()->notice('Imported @migration', array('@migration' => $migration_name));
+          static::logger()->notice('Imported @migration', ['@migration' => $migration_name]);
           break;
 
         case MigrationInterface::RESULT_INCOMPLETE:
-          $context['message'] = t('Importing @migration', array('@migration' => $migration_name));
+          $context['sandbox']['messages'][] = t('Importing @migration (@current of @max)',
+            ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
+             '@max' => $context['sandbox']['max']]);
           break;
 
         case MigrationInterface::RESULT_STOPPED:
-          $context['message'] = t('Import stopped by request');
+          $context['sandbox']['messages'][] = t('Import stopped by request');
           break;
 
         case MigrationInterface::RESULT_FAILED:
-          $context['message'] = t('Import of @migration failed', array('@migration' => $migration_name));
+          $context['sandbox']['messages'][] = t('Import of @migration failed', ['@migration' => $migration_name]);
           $context['results']['failures']++;
-          static::logger()->error('Import of @migration failed', array('@migration' => $migration_name));
+          static::logger()->error('Import of @migration failed', ['@migration' => $migration_name]);
           break;
 
         case MigrationInterface::RESULT_SKIPPED:
-          $context['message'] = t('Import of @migration skipped due to unfulfilled dependencies', array('@migration' => $migration_name));
-          static::logger()->error('Import of @migration skipped due to unfulfilled dependencies', array('@migration' => $migration_name));
+          $context['sandbox']['messages'][] = t('Import of @migration skipped due to unfulfilled dependencies', ['@migration' => $migration_name]);
+          static::logger()->error('Import of @migration skipped due to unfulfilled dependencies', ['@migration' => $migration_name]);
           break;
 
         case MigrationInterface::RESULT_DISABLED:
@@ -79,18 +87,42 @@ class MigrateUpgradeRunBatch {
           break;
       }
 
-      // Add any captured messages.
-      foreach ($messages->getMessages() as $message) {
-        $context['message'] .= "<br />\n" . $message;
-      }
-
       // Unless we're continuing on with this migration, take it off the list.
       if ($migration_status != MigrationInterface::RESULT_INCOMPLETE) {
         array_shift($context['sandbox']['migration_ids']);
+        $context['sandbox']['current']++;
+      }
+
+      // Add and log any captured messages.
+      foreach ($messages->getMessages() as $message) {
+        $context['sandbox']['messages'][] = $message;
+        static::logger()->error($message);
+      }
+
+      // Only display the last 10 messages, in reverse order.
+      $message_count = count($context['sandbox']['messages']);
+      $context['message'] = '';
+      for ($index = max(0, $message_count - 10); $index < $message_count; $index++) {
+        $context['message'] = $context['sandbox']['messages'][$index]. "<br />\n" . $context['message'];
+      }
+      if ($message_count > 10) {
+        // Indicate there are earlier messages not displayed.
+        $context['message'] .= '&hellip;';
+      }
+      // At the top of the list, display the next one (which will be the one
+      // that is running while this message is visible).
+      if (!empty($context['sandbox']['migration_ids'])) {
+        $migration_id = reset($context['sandbox']['migration_ids']);
+        $migration = Migration::load($migration_id);
+        $migration_name = $migration->label() ? $migration->label() : $migration_id;
+        $context['message'] = t('Currently importing @migration (@current of @max)',
+          ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
+           '@max' => $context['sandbox']['max']]) . "<br />\n" . $context['message'];
       }
     }
     else {
       array_shift($context['sandbox']['migration_ids']);
+      $context['sandbox']['current']++;
     }
 
     $context['finished'] = 1 - count($context['sandbox']['migration_ids']) / $context['sandbox']['max'];
@@ -126,12 +158,12 @@ class MigrateUpgradeRunBatch {
 
     // If we had any successes lot that for the user.
     if ($successes > 0) {
-      drupal_set_message(t('Import completed @count successfully.', array('@count' => $translation->formatPlural($successes, '1 migration', '@count migrations'))));
+      drupal_set_message(t('Import completed @count successfully.', ['@count' => $translation->formatPlural($successes, '1 migration', '@count migrations')]));
     }
 
     // If we had failures, log them and show the migration failed.
     if ($failures > 0) {
-      drupal_set_message(t('@count failed', array('@count' => $translation->formatPlural($failures, '1 migration', '@count migrations'))), 'error');
+      drupal_set_message(t('@count failed', ['@count' => $translation->formatPlural($failures, '1 migration', '@count migrations')]), 'error');
       drupal_set_message(t('Import process not completed'), 'error');
     }
     else {
