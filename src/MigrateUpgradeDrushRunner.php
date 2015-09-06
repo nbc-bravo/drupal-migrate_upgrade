@@ -12,7 +12,7 @@ use Drupal\migrate_tools\DrushLogMigrateMessage;
 
 class MigrateUpgradeDrushRunner {
 
-  use MigrateUpgradeTrait;
+  use MigrationCreationTrait;
   use StringTranslationTrait;
 
   /**
@@ -34,7 +34,7 @@ class MigrateUpgradeDrushRunner {
     $db_prefix = drush_get_option('legacy-db-prefix');
     $db_spec['prefix'] = $db_prefix;
 
-    $this->migrationList = $this->configureMigrations($db_spec, drush_get_option('legacy-root'));
+    $this->migrationList = $this->createMigrations($db_spec, drush_get_option('legacy-root'));
   }
 
   /**
