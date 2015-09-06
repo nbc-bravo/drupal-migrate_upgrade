@@ -54,32 +54,32 @@ class MigrateUpgradeRunBatch {
 
       switch ($migration_status) {
         case MigrationInterface::RESULT_COMPLETED:
-          $context['sandbox']['messages'][] = t('Imported @migration (@current of @max)',
+          $context['sandbox']['messages'][] = t('Upgraded @migration (@current of @max)',
             ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
              '@max' => $context['sandbox']['max']]);
           $context['results']['successes']++;
-          static::logger()->notice('Imported @migration', ['@migration' => $migration_name]);
+          static::logger()->notice('Upgraded @migration', ['@migration' => $migration_name]);
           break;
 
         case MigrationInterface::RESULT_INCOMPLETE:
-          $context['sandbox']['messages'][] = t('Importing @migration (@current of @max)',
+          $context['sandbox']['messages'][] = t('Upgrading @migration (@current of @max)',
             ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
              '@max' => $context['sandbox']['max']]);
           break;
 
         case MigrationInterface::RESULT_STOPPED:
-          $context['sandbox']['messages'][] = t('Import stopped by request');
+          $context['sandbox']['messages'][] = t('Upgrade stopped by request');
           break;
 
         case MigrationInterface::RESULT_FAILED:
-          $context['sandbox']['messages'][] = t('Import of @migration failed', ['@migration' => $migration_name]);
+          $context['sandbox']['messages'][] = t('Upgrade of @migration failed', ['@migration' => $migration_name]);
           $context['results']['failures']++;
-          static::logger()->error('Import of @migration failed', ['@migration' => $migration_name]);
+          static::logger()->error('Upgrade of @migration failed', ['@migration' => $migration_name]);
           break;
 
         case MigrationInterface::RESULT_SKIPPED:
-          $context['sandbox']['messages'][] = t('Import of @migration skipped due to unfulfilled dependencies', ['@migration' => $migration_name]);
-          static::logger()->error('Import of @migration skipped due to unfulfilled dependencies', ['@migration' => $migration_name]);
+          $context['sandbox']['messages'][] = t('Upgrade of @migration skipped due to unfulfilled dependencies', ['@migration' => $migration_name]);
+          static::logger()->error('Upgrade of @migration skipped due to unfulfilled dependencies', ['@migration' => $migration_name]);
           break;
 
         case MigrationInterface::RESULT_DISABLED:
@@ -115,7 +115,7 @@ class MigrateUpgradeRunBatch {
         $migration_id = reset($context['sandbox']['migration_ids']);
         $migration = Migration::load($migration_id);
         $migration_name = $migration->label() ? $migration->label() : $migration_id;
-        $context['message'] = t('Currently importing @migration (@current of @max)',
+        $context['message'] = t('Currently upgrading @migration (@current of @max)',
           ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
            '@max' => $context['sandbox']['max']]) . "<br />\n" . $context['message'];
       }
@@ -158,13 +158,13 @@ class MigrateUpgradeRunBatch {
 
     // If we had any successes lot that for the user.
     if ($successes > 0) {
-      drupal_set_message(t('Import completed @count successfully.', ['@count' => $translation->formatPlural($successes, '1 migration', '@count migrations')]));
+      drupal_set_message(t('Completed @count successfully.', ['@count' => $translation->formatPlural($successes, '1 upgrade task', '@count upgrade tasks')]));
     }
 
     // If we had failures, log them and show the migration failed.
     if ($failures > 0) {
-      drupal_set_message(t('@count failed', ['@count' => $translation->formatPlural($failures, '1 migration', '@count migrations')]), 'error');
-      drupal_set_message(t('Import process not completed'), 'error');
+      drupal_set_message(t('@count failed', ['@count' => $translation->formatPlural($failures, '1 upgrade', '@count upgrades')]), 'error');
+      drupal_set_message(t('Upgrade process not completed'), 'error');
     }
     else {
       // Everything went off without a hitch. We may not have had successes but
@@ -174,7 +174,7 @@ class MigrateUpgradeRunBatch {
 
     if (\Drupal::moduleHandler()->moduleExists('dblog')) {
       $url = Url::fromRoute('migrate_upgrade.log');
-      drupal_set_message(\Drupal::l(t('Review the detailed migration log'), $url), $failures ? 'error' : 'status');
+      drupal_set_message(\Drupal::l(t('Review the detailed upgrade log'), $url), $failures ? 'error' : 'status');
     }
   }
 

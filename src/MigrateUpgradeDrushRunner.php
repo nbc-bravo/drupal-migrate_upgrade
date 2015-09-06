@@ -6,6 +6,8 @@
  */
 
 namespace Drupal\migrate_upgrade;
+use Drupal\migrate\Entity\Migration;
+use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate\MigrateExecutable;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\migrate_tools\DrushLogMigrateMessage;
@@ -43,8 +45,9 @@ class MigrateUpgradeDrushRunner {
   public function import() {
     $log = new DrushLogMigrateMessage();
     foreach ($this->migrationList as $migration_id) {
-      $migration = entity_load('migration', $migration_id);
-      drush_print(dt('Importing !migration', ['!migration' => $migration_id]));
+      /** @var MigrationInterface $migration */
+      $migration = Migration::load($migration_id);
+      drush_print(dt('Upgrading !migration', ['!migration' => $migration_id]));
       $executable = new MigrateExecutable($migration, $log);
       // drush_op() provides --simulate support.
       drush_op([$executable, 'import']);

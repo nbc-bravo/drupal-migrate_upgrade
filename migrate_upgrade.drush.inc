@@ -12,15 +12,15 @@ use Drupal\migrate_upgrade\MigrateUpgradeDrushRunner;
  */
 function migrate_upgrade_drush_command() {
   $items['migrate-upgrade'] = [
-    'description' => 'Perform one or more migration processes.',
+    'description' => 'Perform one or more upgrade processes.',
     'options' => [
       'legacy-db-url' => 'A Drupal 6 style database URL. Required.',
       'legacy-db-prefix' => 'Prefix of the legacy Drupal installation.',
       'legacy-root' => 'Site address or root of the legacy Drupal installation',
-      'configure-only' => 'Set up the appropriate migrations but do not run the import',
+      'configure-only' => 'Set up the appropriate upgrade processes but do not perform them',
     ],
     'examples' => [
-      'migrate-upgrade --legacy-db-url=\'mysql://root:pass@127.0.0.1/d6\'' => 'Import a Drupal 6 database',
+      'migrate-upgrade --legacy-db-url=\'mysql://root:pass@127.0.0.1/d6\'' => 'Upgrade a Drupal 6 database to Drupal 8',
     ],
     'drupal dependencies' => ['migrate_upgrade'],
   ];

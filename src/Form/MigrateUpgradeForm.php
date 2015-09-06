@@ -40,7 +40,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
     $form['database'] = [
       '#type' => 'details',
       '#title' => $this->t('Source database'),
-      '#description' => $this->t('Provide credentials for the database of the Drupal site you want to migrate.'),
+      '#description' => $this->t('Provide credentials for the database of the Drupal site you want to upgrade.'),
       '#open' => TRUE,
     ];
 
@@ -131,7 +131,7 @@ class MigrateUpgradeForm extends SiteSettingsForm {
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
     $batch = [
-      'title' => $this->t('Running migrations'),
+      'title' => $this->t('Running upgrade'),
       'progress_message' => '',
       'operations' => [
         [['Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'], [$form_state->getValue('migration_ids')]],
