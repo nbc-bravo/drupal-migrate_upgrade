@@ -14,6 +14,8 @@ use Drupal\Core\Url;
 
 class MigrateUpgradeRunBatch {
 
+  const MESSAGE_LENGTH = 20;
+
   /**
    * Run a single migration batch.
    *
@@ -99,13 +101,13 @@ class MigrateUpgradeRunBatch {
         static::logger()->error($message);
       }
 
-      // Only display the last 10 messages, in reverse order.
+      // Only display the last MESSAGE_LENGTH messages, in reverse order.
       $message_count = count($context['sandbox']['messages']);
       $context['message'] = '';
-      for ($index = max(0, $message_count - 10); $index < $message_count; $index++) {
+      for ($index = max(0, $message_count - self::MESSAGE_LENGTH); $index < $message_count; $index++) {
         $context['message'] = $context['sandbox']['messages'][$index]. "<br />\n" . $context['message'];
       }
-      if ($message_count > 10) {
+      if ($message_count > self::MESSAGE_LENGTH) {
         // Indicate there are earlier messages not displayed.
         $context['message'] .= '&hellip;';
       }
