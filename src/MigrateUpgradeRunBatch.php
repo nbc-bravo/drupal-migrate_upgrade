@@ -9,12 +9,39 @@ namespace Drupal\migrate_upgrade;
 
 use Drupal\migrate\Entity\Migration;
 use Drupal\migrate\Entity\MigrationInterface;
+use Drupal\migrate\Event\MigrateEvents;
+use Drupal\migrate\Event\MigrateMapSaveEvent;
+use Drupal\migrate\Event\MigratePostRowSaveEvent;
 use Drupal\migrate\MigrateExecutable;
 use Drupal\Core\Url;
 
 class MigrateUpgradeRunBatch {
 
+  /**
+   * Maximum number of previous messages to display.
+   */
   const MESSAGE_LENGTH = 20;
+
+  /**
+   * The processed items for one batch of a given migration.
+   *
+   * @var int
+   */
+  protected static $numProcessed = 0;
+
+  /**
+   * Ensure we only add the listeners once per request.
+   *
+   * @var bool
+   */
+  protected static $listenersAdded = FALSE;
+
+  /**
+   * The maximum length in seconds to allow processing in a request.
+   *
+   * @var int
+   */
+  protected static $maxExecTime;
 
   /**
    * Run a single migration batch.
@@ -25,6 +52,21 @@ class MigrateUpgradeRunBatch {
    *   The batch context.
    */
   public static function run($initial_ids, &$context) {
+    if (!static::$listenersAdded) {
+      \Drupal::service('event_dispatcher')->addListener(MigrateEvents::POST_ROW_SAVE,
+        array(get_class(), 'onPostRowSave'));
+      \Drupal::service('event_dispatcher')->addListener(MigrateEvents::MAP_SAVE,
+        array(get_class(), 'onMapSave'));
+      static::$maxExecTime = ini_get('max_execution_time');
+      if (static::$maxExecTime <= 0) {
+        static::$maxExecTime = 60;
+      }
+      // Set an arbitrary threshold of 3 seconds (e.g., if max_execution_time is
+      // 45 seconds, we will quit at 42 seconds so a slow item or cleanup
+      // overhead don't put us over 45).
+      static::$maxExecTime -= 3;
+      static::$listenersAdded = TRUE;
+    }
     if (!isset($context['sandbox']['migration_ids'])) {
       $context['sandbox']['max'] = count($initial_ids);
       $context['sandbox']['current'] = 1;
@@ -48,25 +90,31 @@ class MigrateUpgradeRunBatch {
         $migration_status = $executable->import();
       }
       catch (\Exception $e) {
-        // PluginNotFoundException is when the D8 module is disabled, maybe that
-        // should be a RequirementsException instead.
         static::logger()->error($e->getMessage());
         $migration_status = MigrationInterface::RESULT_FAILED;
       }
 
       switch ($migration_status) {
         case MigrationInterface::RESULT_COMPLETED:
-          $context['sandbox']['messages'][] = t('Upgraded @migration (@current of @max)',
-            ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
-             '@max' => $context['sandbox']['max']]);
+          $singular_message = 'Upgraded @migration (processed 1 item total)';
+          $plural_message = 'Upgraded @migration (processed @num_processed items total)';
+          $processed = $migration->getIdMap()->processedCount();
+          $message = \Drupal::translation()->formatPlural(
+            $processed, $singular_message, $plural_message,
+            ['@migration' => $migration_name, '@num_processed' => $processed]);
+          $context['sandbox']['messages'][] = $message;
+          static::logger()->notice($message);
+          static::$numProcessed = 0;
           $context['results']['successes']++;
-          static::logger()->notice('Upgraded @migration', ['@migration' => $migration_name]);
           break;
 
         case MigrationInterface::RESULT_INCOMPLETE:
-          $context['sandbox']['messages'][] = t('Upgrading @migration (@current of @max)',
-            ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
-             '@max' => $context['sandbox']['max']]);
+          $singular_message = 'Continuing with @migration (processed 1 item)';
+          $plural_message = 'Continuing with @migration (processed @num_processed items)';
+          $context['sandbox']['messages'][] = \Drupal::translation()->formatPlural(
+            static::$numProcessed, $singular_message, $plural_message,
+            ['@migration' => $migration_name, '@num_processed' => static::$numProcessed]);
+          static::$numProcessed = 0;
           break;
 
         case MigrationInterface::RESULT_STOPPED:
@@ -117,7 +165,7 @@ class MigrateUpgradeRunBatch {
         $migration_id = reset($context['sandbox']['migration_ids']);
         $migration = Migration::load($migration_id);
         $migration_name = $migration->label() ? $migration->label() : $migration_id;
-        $context['message'] = t('Currently upgrading @migration (@current of @max)',
+        $context['message'] = t('Currently upgrading @migration (@current of @max total tasks)',
           ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
            '@max' => $context['sandbox']['max']]) . "<br />\n" . $context['message'];
       }
@@ -178,6 +226,29 @@ class MigrateUpgradeRunBatch {
       $url = Url::fromRoute('migrate_upgrade.log');
       drupal_set_message(\Drupal::l(t('Review the detailed upgrade log'), $url), $failures ? 'error' : 'status');
     }
+  }
+
+  /**
+   * React to item import.
+   *
+   * @param \Drupal\migrate\Event\MigratePostRowSaveEvent $event
+   *   The post-save event.
+   */
+  public static function onPostRowSave(MigratePostRowSaveEvent $event) {
+    // We want to interrupt this batch and start a fresh one.
+    if ((time() - REQUEST_TIME) > static::$maxExecTime) {
+      $event->getMigration()->interruptMigration(MigrationInterface::RESULT_INCOMPLETE);
+    }
+  }
+
+  /**
+   * Count up any map save events.
+   *
+   * @param \Drupal\migrate\Event\MigrateMapSaveEvent $event
+   *   The map event.
+   */
+  public static function onMapSave(MigrateMapSaveEvent $event) {
+    static::$numProcessed++;
   }
 
 }
