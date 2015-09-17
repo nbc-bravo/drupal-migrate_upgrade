@@ -549,7 +549,7 @@ class MigrateUpgradeForm extends SiteSettingsForm implements ConfirmFormInterfac
     include_once DRUPAL_ROOT . '/core/includes/install.inc';
 
     $form = parent::buildForm($form, $form_state);
-    $form['#title'] = $this->t('Drupal Upgrade: Source site information');
+    $form['#title'] = $this->t('Drupal Upgrade');
 
     $form['database'] = [
       '#type' => 'details',
