@@ -9,7 +9,7 @@ namespace Drupal\migrate_upgrade\Form;
 
 use Drupal\Core\Form\ConfirmFormHelper;
 use Drupal\Core\Form\ConfirmFormInterface;
-use Drupal\Core\Installer\Form\SiteSettingsForm;
+use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Url;
 use Drupal\migrate\Entity\Migration;
@@ -17,20 +17,11 @@ use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate_upgrade\MigrationCreationTrait;
 
 /**
- * Form for performing direct site upgrades. Since we have the same need for
- * obtaining (source) database credentials on the install process, we build off
- * its form.
+ * Multi-step form for performing direct site upgrades.
  */
-class MigrateUpgradeForm extends SiteSettingsForm implements ConfirmFormInterface {
+class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
 
   use MigrationCreationTrait;
-
-  /**
-   * The submitted data needing to be confirmed.
-   *
-   * @var array
-   */
-  protected $data = [];
 
   /**
    * @todo: Find a mechanism to derive this information from the migrations
@@ -540,16 +531,46 @@ class MigrateUpgradeForm extends SiteSettingsForm implements ConfirmFormInterfac
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-    // When this is the confirmation step, present the confirmation form.
-    if ($this->data) {
-      return $this->buildConfirmForm($form, $form_state);
+    $step = $form_state->getValue('step', 'credentials');
+    switch ($step) {
+      case 'credentials':
+        return $this->buildCredentialForm($form, $form_state);
+      case 'confirm':
+        return $this->buildConfirmForm($form, $form_state);
+      default:
+        drupal_set_message($this->t('Unrecognized form step @step',
+          ['@step' => $step]), 'error');
+        return [];
     }
+  }
 
+  /**
+   * {@inheritdoc}
+   */
+  public function submitForm(array &$form, FormStateInterface $form_state) {}
+
+  /**
+   * Build the form gathering database credential and file location information.
+   * This is largely borrowed from SiteSettingsForm.
+   *
+   * @param array $form
+   *   An associative array containing the structure of the form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current state of the form.
+   *
+   * @return array
+   *   The form structure.
+   */
+  public function buildCredentialForm(array $form, FormStateInterface $form_state) {
     // Make sure the install API is available.
     include_once DRUPAL_ROOT . '/core/includes/install.inc';
 
-    $form = parent::buildForm($form, $form_state);
     $form['#title'] = $this->t('Drupal Upgrade');
+
+    $drivers = drupal_get_database_types();
+    $drivers_keys = array_keys($drivers);
+    $default_driver = current($drivers_keys);
+    $default_options = [];
 
     $form['database'] = [
       '#type' => 'details',
@@ -558,18 +579,44 @@ class MigrateUpgradeForm extends SiteSettingsForm implements ConfirmFormInterfac
       '#open' => TRUE,
     ];
 
-    // Copy the values from the parent form into our structure.
-    $form['database']['driver'] = $form['driver'];
-    $form['database']['settings'] = $form['settings'];
+    $form['database']['driver'] = [
+      '#type' => 'radios',
+      '#title' => $this->t('Database type'),
+      '#required' => TRUE,
+      '#default_value' => $default_driver,
+    ];
+    if (count($drivers) == 1) {
+      $form['database']['driver']['#disabled'] = TRUE;
+    }
+
+    // Add driver specific configuration options.
+    foreach ($drivers as $key => $driver) {
+      $form['database']['driver']['#options'][$key] = $driver->name();
+
+      $form['database']['settings'][$key] = $driver->getFormOptions($default_options);
+      $form['database']['settings'][$key]['#prefix'] = '<h2 class="js-hide">' . $this->t('@driver_name settings', ['@driver_name' => $driver->name()]) . '</h2>';
+      $form['database']['settings'][$key]['#type'] = 'container';
+      $form['database']['settings'][$key]['#tree'] = TRUE;
+      $form['database']['settings'][$key]['advanced_options']['#parents'] = [$key];
+      $form['database']['settings'][$key]['#states'] = [
+        'visible' => [
+          ':input[name=driver]' => ['value' => $key],
+        ]
+      ];
+    }
+
+    // Move the host fields out of advanced settings.
     $form['database']['settings']['mysql']['host'] = $form['database']['settings']['mysql']['advanced_options']['host'];
     $form['database']['settings']['mysql']['host']['#title'] = 'Database host';
-    $form['database']['settings']['mysql']['host']['#weight'] = 0;
-
-    // Remove the values from the parent form.
-    unset($form['driver']);
+    $form['database']['settings']['mysql']['host']['#weight'] = -1;
     unset($form['database']['settings']['mysql']['database']['#default_value']);
-    unset($form['settings']);
     unset($form['database']['settings']['mysql']['advanced_options']['host']);
+
+    $form['database']['settings']['pgsql']['host'] = $form['database']['settings']['pgsql']['advanced_options']['host'];
+    $form['database']['settings']['pgsql']['host']['#title'] = 'Database host';
+    $form['database']['settings']['pgsql']['host']['#weight'] = -1;
+    unset($form['database']['settings']['pgsql']['database']['#default_value']);
+    unset($form['database']['settings']['pgsql']['advanced_options']['host']);
 
     $form['source'] = [
       '#type' => 'details',
@@ -582,29 +629,96 @@ class MigrateUpgradeForm extends SiteSettingsForm implements ConfirmFormInterfac
       '#description' => $this->t('To import files from your current Drupal site, enter a local file directory containing your site (e.g. /var/www/docroot), or your site address (e.g. http://example.com).'),
     ];
 
-/*
-    // @todo: Not yet implemented, depends on https://www.drupal.org/node/2547125.
-    $form['files']['private_file_directory'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Private file path'),
-      '#description' => $this->t('To import private files from your current Drupal site, enter a local file directory containing your files (e.g. /var/private_files).'),
+    /*
+      // @todo: Not yet implemented, depends on https://www.drupal.org/node/2547125.
+      $form['files']['private_file_directory'] = [
+        '#type' => 'textfield',
+        '#title' => $this->t('Private file path'),
+        '#description' => $this->t('To import private files from your current Drupal site, enter a local file directory containing your files (e.g. /var/private_files).'),
+      ];
+    */
+
+    $form['actions'] = ['#type' => 'actions'];
+    $form['actions']['save'] = [
+      '#type' => 'submit',
+      '#value' => $this->t('Review upgrade'),
+      '#button_type' => 'primary',
+      '#limit_validation_errors' => [
+        ['driver'],
+        [$default_driver],
+      ],
+      '#validate' => [[$this, 'validateCredentialForm']],
+      '#submit' => [[$this, 'submitCredentialForm']],
     ];
-*/
-
-    // Rename the submit button.
-    $form['actions']['save']['#value'] = $this->t('Review upgrade');
-
-    // The parent form uses #limit_validation_errors to avoid validating the
-    // unselected database drivers. This makes it difficult for us to handle
-    // database errors in our validation, and does not appear to actually be
-    // necessary with the current implementation, so we remove it.
-    unset($form['actions']['save']['#limit_validation_errors']);
-
     return $form;
   }
 
   /**
-   * {@inheritdoc}
+   * Credential form validation handler.
+   *
+   * @param array $form
+   *   An associative array containing the structure of the form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current state of the form.
+   */
+  public function validateCredentialForm(array &$form, FormStateInterface $form_state) {
+    // Retrieve the database driver from the form, use reflection to get the
+    // namespace and then construct a valid database array the same as in
+    // settings.php.
+    $driver = $form_state->getValue('driver');
+    $drivers = $this->getDatabaseTypes();
+    $reflection = new \ReflectionClass($drivers[$driver]);
+    $install_namespace = $reflection->getNamespaceName();
+
+    $database = $form_state->getValue($driver);
+    // Cut the trailing \Install from namespace.
+    $database['namespace'] = substr($install_namespace, 0, strrpos($install_namespace, '\\'));
+    $database['driver'] = $driver;
+
+    // Validate the driver settings and just end here if we have any issues.
+    if ($errors = $drivers[$driver]->validateDatabaseSettings($database)) {
+      foreach ($errors as $name => $message) {
+        $form_state->setErrorByName($name, $message);
+      }
+      return;
+    }
+
+    try {
+      // Create all the relevant migrations and get their IDs so we can run them.
+      $migration_ids = $this->createMigrations($database, $form_state->getValue('source_base_path'));
+
+      // Store the retrieved migration ids in form storage.
+      $form_state->set('migration_ids', $migration_ids);
+    }
+    catch (\Exception $e) {
+      $form_state->setErrorByName(NULL, $this->t($e->getMessage()));
+    }
+  }
+
+  /**
+   * Credential form submission handler.
+   *
+   * @param array $form
+   *   An associative array containing the structure of the form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current state of the form.
+   */
+  public function submitCredentialForm(array &$form, FormStateInterface $form_state) {
+    // Indicate the next step is confirmation.
+    $form_state->setValue('step', 'confirm');
+    $form_state->setRebuild();
+  }
+
+  /**
+   * Build the form gathering database credential and file location information.
+   *
+   * @param array $form
+   *   An associative array containing the structure of the form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current state of the form.
+   *
+   * @return array
+   *   The form structure.
    */
   public function buildConfirmForm(array $form, FormStateInterface $form_state) {
     $form['#title'] = $this->getQuestion();
@@ -615,12 +729,16 @@ class MigrateUpgradeForm extends SiteSettingsForm implements ConfirmFormInterfac
 
     $form['module_list'] = [
       '#type' => 'table',
-      '#header' => [$this->t('Source module'), $this->t('Destination module'), $this->t('Data to be upgraded')],
+      '#header' => [
+        $this->t('Source module'),
+        $this->t('Destination module'),
+        $this->t('Data to be upgraded')
+      ],
     ];
 
     $table_data = [];
     $system_data = [];
-    foreach ($this->data['migration_ids'] as $migration_id) {
+    foreach ($form_state->get('migration_ids') as $migration_id) {
       /** @var MigrationInterface $migration */
       $migration = Migration::load($migration_id);
       // Fetch the system data at the first opportunity.
@@ -679,6 +797,8 @@ class MigrateUpgradeForm extends SiteSettingsForm implements ConfirmFormInterfac
       '#type' => 'submit',
       '#value' => $this->getConfirmText(),
       '#button_type' => 'primary',
+      '#validate' => [],
+      '#submit' => [[$this, 'submitConfirmForm']],
     ];
 
     $form['actions']['cancel'] = ConfirmFormHelper::buildCancelLink($this, $this->getRequest());
@@ -691,69 +811,27 @@ class MigrateUpgradeForm extends SiteSettingsForm implements ConfirmFormInterfac
   }
 
   /**
-   * {@inheritdoc}
+   * Credential form submission handler.
+   *
+   * @param array $form
+   *   An associative array containing the structure of the form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current state of the form.
    */
-  public function validateForm(array &$form, FormStateInterface $form_state) {
-    // The confirmation step needs no additional validation.
-    if ($this->data) {
-      return;
-    }
-
-    // Retrieve the database driver from the form, use reflection to get the
-    // namespace and then construct a valid database array the same as in
-    // settings.php.
-    $driver = $form_state->getValue('driver');
-    $drivers = $this->getDatabaseTypes();
-    $reflection = new \ReflectionClass($drivers[$driver]);
-    $install_namespace = $reflection->getNamespaceName();
-
-    $database = $form_state->getValue($driver);
-    // Cut the trailing \Install from namespace.
-    $database['namespace'] = substr($install_namespace, 0, strrpos($install_namespace, '\\'));
-    $database['driver'] = $driver;
-
-    // Validate the driver settings and just end here if we have any issues.
-    if ($errors = $drivers[$driver]->validateDatabaseSettings($database)) {
-      foreach ($errors as $name => $message) {
-        $form_state->setErrorByName($name, $message);
-      }
-      return;
-    }
-
-    try {
-      // Create all the relevant migrations and get their IDs so we can run them.
-      $migration_ids = $this->createMigrations($database, $form_state->getValue('source_base_path'));
-
-      // Store the retrieved migration ids on the form state.
-      $form_state->setValue('migration_ids', $migration_ids);
-
-      // Also save the computed upgrade path info.
-      $form_state->setValue('valid_upgrade_paths', $this->validUpgradePaths);
-      $form_state->setValue('missing_destinations', $this->missingDestinations);
-    }
-    catch (\Exception $e) {
-      $form_state->setErrorByName(NULL, $this->t($e->getMessage()));
-    }
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function submitForm(array &$form, FormStateInterface $form_state) {
-    // If this form has not yet been confirmed, store the values and rebuild.
-    if (!$this->data) {
-      $form_state->setRebuild();
-      $this->data = $form_state->getValues();
-      return;
-    }
-
+  public function submitConfirmForm(array &$form, FormStateInterface $form_state) {
     $batch = [
       'title' => $this->t('Running upgrade'),
       'progress_message' => '',
       'operations' => [
-        [['Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'], [$this->data['migration_ids']]],
+        [
+          ['Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'],
+          [$form_state->get('migration_ids')]
+        ],
       ],
-      'finished' => ['Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'finished'],
+      'finished' => [
+        'Drupal\migrate_upgrade\MigrateUpgradeRunBatch',
+        'finished'
+      ],
     ];
     batch_set($batch);
     $form_state->setRedirect('<front>');
