@@ -58,6 +58,10 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       'source_module' => 'block',
       'destination_module' => 'block',
     ],
+    'd7_block' => [
+      'source_module' => 'block',
+      'destination_module' => 'block',
+    ],
     'block_content_body_field' => [
       'source_module' => 'block',
       'destination_module' => 'block_content',
@@ -67,6 +71,10 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       'destination_module' => 'block_content',
     ],
     'd6_custom_block' => [
+      'source_module' => 'block',
+      'destination_module' => 'block_content',
+    ],
+    'd7_custom_block' => [
       'source_module' => 'block',
       'destination_module' => 'block_content',
     ],
@@ -230,6 +238,10 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       'source_module' => 'forum',
       'destination_module' => 'forum',
     ],
+    'd7_forum_settings' => [
+      'source_module' => 'forum',
+      'destination_module' => 'forum',
+    ],
     'd6_imagecache_presets' => [
       'source_module' => 'imagecache',
       'destination_module' => 'image',
@@ -311,6 +323,10 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       'destination_module' => 'node',
     ],
     'd6_url_alias' => [
+      'source_module' => 'path',
+      'destination_module' => 'path',
+    ],
+    'd7_url_alias' => [
       'source_module' => 'path',
       'destination_module' => 'path',
     ],
@@ -427,6 +443,14 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       'destination_module' => 'taxonomy',
     ],
     'd6_vocabulary_field_instance' => [
+      'source_module' => 'taxonomy',
+      'destination_module' => 'taxonomy',
+    ],
+    'd7_taxonomy_term' => [
+      'source_module' => 'taxonomy',
+      'destination_module' => 'taxonomy',
+    ],
+    'd7_taxonomy_vocabulary' => [
       'source_module' => 'taxonomy',
       'destination_module' => 'taxonomy',
     ],
