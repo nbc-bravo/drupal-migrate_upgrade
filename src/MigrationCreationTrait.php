@@ -74,7 +74,10 @@ trait MigrationCreationTrait {
         if ($migration->getDestinationPlugin() instanceof RequirementsInterface) {
           $migration->getDestinationPlugin()->checkRequirements();
         }
-        $migration->save();
+        // Don't try to resave migrations that already exist.
+        if (!Migration::load($migration->id())) {
+          $migration->save();
+        }
         $migration_ids[] = $migration->id();
       }
       // Migrations which are not applicable given the source and destination

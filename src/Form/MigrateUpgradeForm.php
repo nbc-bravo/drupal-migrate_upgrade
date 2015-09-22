@@ -24,6 +24,12 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
   use MigrationCreationTrait;
 
   /**
+   * The choices of what to do when an upgrade has previously been run.
+   */
+  const MIGRATE_UPGRADE_INCREMENTAL = 1;
+  const MIGRATE_UPGRADE_ROLLBACK = 2;
+
+  /**
    * @todo: Find a mechanism to derive this information from the migrations
    *   themselves.
    *
@@ -589,35 +595,51 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
   public function buildOverviewForm(array $form, FormStateInterface $form_state) {
     $form['#title'] = $this->t('Drupal Upgrade');
 
-    $form['info_header'] = [
-      '#markup' => '<p>' . $this->t('Use this utility to upgrade from a previous version of Drupal.') . '</p><p>' . $this->t('For more detailed information, see the <a href="https://www.drupal.org/upgrade">upgrading handbook</a>. If you are unsure what these terms mean you should probably contact your hosting provider.') . '</p>',
-    ];
+    if ($date_performed = \Drupal::state()->get('migrate_upgrade.performed')) {
+      $form['upgrade_option'] = array(
+        '#type' => 'radios',
+        '#title' => $this->t('An upgrade has already been performed on this site, begun at @date. You have two options from this point.', ['@date' => \Drupal::service('date.formatter')->format($date_performed)]),
+        '#default_value' => static::MIGRATE_UPGRADE_INCREMENTAL,
+        '#options' => array(
+          static::MIGRATE_UPGRADE_INCREMENTAL => $this->t('You may rerun the upgrade process, which will import any additional configuration and content not available when running the upgrade previously.'),
+          static::MIGRATE_UPGRADE_ROLLBACK => $this->t('You may rollback the previous upgrade operation, removing imported content as well as configuration entities such as fields and node types. Note that simple configuration changes made by the previous upgrade process will not be restored. @todo: This is not yet implemented.'),
+        )
+      );
+      $validate = ['::validateCredentialForm'];
+    }
+    else {
+      $form['info_header'] = [
+        '#markup' => '<p>' . $this->t('Use this utility to upgrade from a previous version of Drupal.') . '</p><p>' . $this->t('For more detailed information, see the <a href="https://www.drupal.org/upgrade">upgrading handbook</a>. If you are unsure what these terms mean you should probably contact your hosting provider.') . '</p>',
+      ];
 
-    $info[] = $this->t('Make sure that the host this site is on has access to the database for your previous site.');
-    $info[] = $this->t('If your previous site has private files to be migrated, a copy of your files directory should be accessible on the host this site is on.');
-    $info[] = $this->t('Make sure any modules you wish to have upgraded are enabled on both the source site and the current site.');
-    $info[] = $this->t('Put your site into <a href=":url">maintenance mode</a>.', [
-      ':url' => Url::fromRoute('system.site_maintenance_mode')->toString(TRUE)->getGeneratedUrl(),
-    ]);
-    $info[] = $this->t('<strong>Back up your database</strong>. This process will change your database values and in case of emergency you may need to revert to a backup.');
+      $info[] = $this->t('Make sure that the host this site is on has access to the database for your previous site.');
+      $info[] = $this->t('If your previous site has private files to be migrated, a copy of your files directory should be accessible on the host this site is on.');
+      $info[] = $this->t('Make sure any modules you wish to have upgraded are enabled on both the source site and the current site.');
+      $info[] = $this->t('Put your site into <a href=":url">maintenance mode</a>.', [
+        ':url' => Url::fromRoute('system.site_maintenance_mode')
+                     ->toString(TRUE)
+                     ->getGeneratedUrl(),
+      ]);
+      $info[] = $this->t('<strong>Back up your database</strong>. This process will change your database values and in case of emergency you may need to revert to a backup.');
 
-
-    $form['info'] = [
-      '#theme' => 'item_list',
-      '#list_type' => 'ol',
-      '#items' => $info,
-    ];
-    $form['info_footer'] = [
-      '#markup' => '<p>' . $this->t('When you have performed the steps above, you may proceed.') . '</p>',
-    ];
+      $form['info'] = [
+        '#theme' => 'item_list',
+        '#list_type' => 'ol',
+        '#items' => $info,
+      ];
+      $form['info_footer'] = [
+        '#markup' => '<p>' . $this->t('When you have performed the steps above, you may proceed.') . '</p>',
+      ];
+      $validate = [];
+    }
 
     $form['actions'] = ['#type' => 'actions'];
     $form['actions']['save'] = [
       '#type' => 'submit',
       '#value' => $this->t('Continue'),
       '#button_type' => 'primary',
-      '#validate' => [],
-      '#submit' => [[$this, 'submitOverviewForm']],
+      '#validate' => $validate,
+      '#submit' => ['::submitOverviewForm'],
     ];
     return $form;
   }
@@ -631,9 +653,20 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
    *   The current state of the form.
    */
   public function submitOverviewForm(array &$form, FormStateInterface $form_state) {
-    // Indicate the next step is credentials.
-    $form_state->setValue('step', 'credentials');
-    $form_state->setRebuild();
+    switch ($form_state->getValue('upgrade_option')) {
+      case static::MIGRATE_UPGRADE_INCREMENTAL:
+        $form_state->setValue('step', 'confirm');
+        $form_state->setRebuild();
+        break;
+      case static::MIGRATE_UPGRADE_ROLLBACK:
+        $form_state->setValue('step', 'credentials');
+        drupal_set_message($this->t('Rollback of an upgrade process is not yet implemented.'), 'warning');
+        break;
+      default:
+        $form_state->setValue('step', 'credentials');
+        $form_state->setRebuild();
+        break;
+    }
   }
 
   /**
@@ -734,8 +767,8 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
         ['driver'],
         [$default_driver],
       ],
-      '#validate' => [[$this, 'validateCredentialForm']],
-      '#submit' => [[$this, 'submitCredentialForm']],
+      '#validate' => ['::validateCredentialForm'],
+      '#submit' => ['::submitCredentialForm'],
     ];
     return $form;
   }
@@ -752,22 +785,45 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
     // Retrieve the database driver from the form, use reflection to get the
     // namespace and then construct a valid database array the same as in
     // settings.php.
-    $driver = $form_state->getValue('driver');
-    $drivers = $this->getDatabaseTypes();
-    $reflection = new \ReflectionClass($drivers[$driver]);
-    $install_namespace = $reflection->getNamespaceName();
+    if ($driver = $form_state->getValue('driver')) {
+      $drivers = $this->getDatabaseTypes();
+      $reflection = new \ReflectionClass($drivers[$driver]);
+      $install_namespace = $reflection->getNamespaceName();
 
-    $database = $form_state->getValue($driver);
-    // Cut the trailing \Install from namespace.
-    $database['namespace'] = substr($install_namespace, 0, strrpos($install_namespace, '\\'));
-    $database['driver'] = $driver;
+      $database = $form_state->getValue($driver);
+      // Cut the trailing \Install from namespace.
+      $database['namespace'] = substr($install_namespace, 0, strrpos($install_namespace, '\\'));
+      $database['driver'] = $driver;
 
-    // Validate the driver settings and just end here if we have any issues.
-    if ($errors = $drivers[$driver]->validateDatabaseSettings($database)) {
-      foreach ($errors as $name => $message) {
-        $form_state->setErrorByName($name, $message);
+      // Validate the driver settings and just end here if we have any issues.
+      if ($errors = $drivers[$driver]->validateDatabaseSettings($database)) {
+        foreach ($errors as $name => $message) {
+          $form_state->setErrorByName($name, $message);
+        }
+        return;
       }
-      return;
+    }
+    else {
+      // Find a migration which has database credentials and use those.
+      $query = \Drupal::entityQuery('migration', 'OR');
+      $ids = $query->execute();
+      foreach ($ids as $id) {
+        /** @var MigrationInterface $migration */
+        $migration = Migration::load($id);
+        $is_drupal_migration = FALSE;
+        foreach ($migration->get('migration_tags') as $migration_tag) {
+          if (substr($migration_tag, 0, 7) == 'Drupal ') {
+            $is_drupal_migration = TRUE;
+            break;
+          }
+        }
+        if ($is_drupal_migration) {
+          $source = $migration->get('source');
+          if ($database = $source['database']) {
+            break;
+          }
+        }
+      }
     }
 
     try {
@@ -885,7 +941,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       '#value' => $this->getConfirmText(),
       '#button_type' => 'primary',
       '#validate' => [],
-      '#submit' => [[$this, 'submitConfirmForm']],
+      '#submit' => ['::submitConfirmForm'],
     ];
 
     $form['actions']['cancel'] = ConfirmFormHelper::buildCancelLink($this, $this->getRequest());
@@ -922,6 +978,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
     ];
     batch_set($batch);
     $form_state->setRedirect('<front>');
+    \Drupal::state()->set('migrate_upgrade.performed', REQUEST_TIME);
   }
 
   /**
