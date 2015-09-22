@@ -531,8 +531,10 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-    $step = $form_state->getValue('step', 'credentials');
+    $step = $form_state->getValue('step', 'overview');
     switch ($step) {
+      case 'overview':
+        return $this->buildOverviewForm($form, $form_state);
       case 'credentials':
         return $this->buildCredentialForm($form, $form_state);
       case 'confirm':
@@ -548,6 +550,67 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {}
+
+  /**
+   * Build the form presenting an overview of the migration process.
+   *
+   * @param array $form
+   *   An associative array containing the structure of the form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current state of the form.
+   *
+   * @return array
+   *   The form structure.
+   */
+  public function buildOverviewForm(array $form, FormStateInterface $form_state) {
+    $form['#title'] = $this->t('Drupal Upgrade');
+
+    $form['info_header'] = [
+      '#markup' => '<p>' . $this->t('Use this utility to upgrade from a previous version of Drupal.') . '</p><p>' . $this->t('For more detailed information, see the <a href="https://www.drupal.org/upgrade">upgrading handbook</a>. If you are unsure what these terms mean you should probably contact your hosting provider.') . '</p>',
+    ];
+
+    $info[] = $this->t('Make sure that the host this site is on has access to the database for your previous site.');
+    $info[] = $this->t('If your previous site has private files to be migrated, a copy of your files directory should be accessible on the host this site is on.');
+    $info[] = $this->t('Make sure any modules you wish to have upgraded are enabled on both the source site and the current site.');
+    $info[] = $this->t('Put your site into <a href=":url">maintenance mode</a>.', [
+      ':url' => Url::fromRoute('system.site_maintenance_mode')->toString(TRUE)->getGeneratedUrl(),
+    ]);
+    $info[] = $this->t('<strong>Back up your database</strong>. This process will change your database values and in case of emergency you may need to revert to a backup.');
+
+
+    $form['info'] = [
+      '#theme' => 'item_list',
+      '#list_type' => 'ol',
+      '#items' => $info,
+    ];
+    $form['info_footer'] = [
+      '#markup' => '<p>' . $this->t('When you have performed the steps above, you may proceed.') . '</p>',
+    ];
+
+    $form['actions'] = ['#type' => 'actions'];
+    $form['actions']['save'] = [
+      '#type' => 'submit',
+      '#value' => $this->t('Continue'),
+      '#button_type' => 'primary',
+      '#validate' => [],
+      '#submit' => [[$this, 'submitOverviewForm']],
+    ];
+    return $form;
+  }
+
+  /**
+   * Overview form submission handler.
+   *
+   * @param array $form
+   *   An associative array containing the structure of the form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current state of the form.
+   */
+  public function submitOverviewForm(array &$form, FormStateInterface $form_state) {
+    // Indicate the next step is credentials.
+    $form_state->setValue('step', 'credentials');
+    $form_state->setRebuild();
+  }
 
   /**
    * Build the form gathering database credential and file location information.
@@ -845,7 +908,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
    */
   protected function getDatabaseTypes() {
     // Make sure the install API is available.
-    include_once DRUPAL_ROOT . '/core/includes/install.core.inc';
+    include_once DRUPAL_ROOT . '/core/includes/install.inc';
     return drupal_get_database_types();
   }
 

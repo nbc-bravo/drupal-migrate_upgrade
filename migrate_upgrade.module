@@ -15,8 +15,5 @@ function migrate_upgrade_help($route_name, RouteMatchInterface $route_match) {
     case 'help.page.migrate_upgrade':
       $output = '<p>' . t('The Drupal Upgrade UI module provides a one-click upgrade from an earlier version of Drupal. For more details, see <a href="!migrate">upgrading from previous versions</a>.', ['!migrate' => 'https://www.drupal.org/upgrade']) . '</p>';
       return $output;
-    case 'migrate_upgrade.upgrade':
-      $output = '<p>' . t('Performing this upgrade operation will alter site configuration to match that of your original site, and import site data including but not limited to user accounts, vocabularies, content, and comments. For more details, see <a href="!migrate">upgrading from previous versions</a>.', ['!migrate' => 'https://www.drupal.org/upgrade']) . '</p>';
-      return $output;
   }
 }
