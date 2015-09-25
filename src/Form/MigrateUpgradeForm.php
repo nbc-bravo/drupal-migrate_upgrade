@@ -834,7 +834,18 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       $form_state->set('migration_ids', $migration_ids);
     }
     catch (\Exception $e) {
-      $form_state->setErrorByName(NULL, $this->t($e->getMessage()));
+      $error_message = [
+        '#type' => 'inline_template',
+        '#template' => '{% trans %}Resolve the issue below to continue the upgrade.{% endtrans%}{{ errors }}',
+        '#context' => [
+          'errors' => [
+            '#theme' => 'item_list',
+            '#items' => [$e->getMessage()],
+          ],
+        ],
+      ];
+
+      $form_state->setErrorByName($database['driver'] . '][0', \Drupal::service('renderer')->renderPlain($error_message));
     }
   }
 
