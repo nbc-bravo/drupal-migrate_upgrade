@@ -596,14 +596,20 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
     $form['#title'] = $this->t('Drupal Upgrade');
 
     if ($date_performed = \Drupal::state()->get('migrate_upgrade.performed')) {
+      $form['upgrade_option_item'] = [
+        '#type' => 'item',
+        '#prefix' => t('<p>An upgrade has already been performed on this site.</p>'),
+        '#description' => t('<p>Last upgrade: @date</p>',
+          ['@date' => \Drupal::service('date.formatter')->format($date_performed)]),
+      ];
       $form['upgrade_option'] = array(
         '#type' => 'radios',
-        '#title' => $this->t('An upgrade has already been performed on this site, begun at @date. You have two options from this point.', ['@date' => \Drupal::service('date.formatter')->format($date_performed)]),
+        '#title' => $this->t('You have two options:'),
         '#default_value' => static::MIGRATE_UPGRADE_INCREMENTAL,
-        '#options' => array(
-          static::MIGRATE_UPGRADE_INCREMENTAL => $this->t('You may rerun the upgrade process, which will import any additional configuration and content not available when running the upgrade previously.'),
-          static::MIGRATE_UPGRADE_ROLLBACK => $this->t('You may rollback the previous upgrade operation, removing imported content as well as configuration entities such as fields and node types. Note that simple configuration changes made by the previous upgrade process will not be restored. @todo: This is not yet implemented.'),
-        )
+        '#options' => [
+          static::MIGRATE_UPGRADE_INCREMENTAL => $this->t('<strong>Rerun</strong>: Import additional configuration and content that was not available when running the upgrade previously.'),
+          static::MIGRATE_UPGRADE_ROLLBACK => $this->t('<strong>Rollback</strong>: Remove content and configuration entities (such as fields and node types). Default values of other configuration will not be reverted (such as site name).'),
+        ],
       );
       $validate = ['::validateCredentialForm'];
     }
