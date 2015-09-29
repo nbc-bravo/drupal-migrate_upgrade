@@ -47,7 +47,7 @@ class MigrateUpgradeDrushRunner {
     foreach ($this->migrationList as $migration_id) {
       /** @var MigrationInterface $migration */
       $migration = Migration::load($migration_id);
-      drush_print(dt('Upgrading !migration', ['!migration' => $migration_id]));
+      drush_print(dt('Upgrading @migration', ['@migration' => $migration_id]));
       $executable = new MigrateExecutable($migration, $log);
       // drush_op() provides --simulate support.
       drush_op([$executable, 'import']);

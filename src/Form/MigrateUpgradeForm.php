@@ -615,27 +615,31 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
     }
     else {
       $form['info_header'] = [
-        '#markup' => '<p>' . $this->t('Use this utility to upgrade from a previous version of Drupal.') . '</p><p>' . $this->t('For more detailed information, see the <a href="https://www.drupal.org/upgrade">upgrading handbook</a>. If you are unsure what these terms mean you should probably contact your hosting provider.') . '</p>',
+        '#markup' => '<p>' . $this->t('Upgrade a Drupal site by importing it into a clean and empty new install of Drupal 8. You will lose any existing configuration once you import your site into it. See the <a href=":url">upgrading handbook</a> for more detailed information.', [
+            ':url' => 'https://www.drupal.org/upgrade/migrate'
+          ]),
       ];
 
+      $info[] = $this->t('<strong>Back up the database for this site</strong>. Upgrade will change the database for this site.');
       $info[] = $this->t('Make sure that the host this site is on has access to the database for your previous site.');
-      $info[] = $this->t('If your previous site has private files to be migrated, a copy of your files directory should be accessible on the host this site is on.');
-      $info[] = $this->t('Make sure any modules you wish to have upgraded are enabled on both the source site and the current site.');
-      $info[] = $this->t('Put your site into <a href=":url">maintenance mode</a>.', [
-        ':url' => Url::fromRoute('system.site_maintenance_mode')
-                     ->toString(TRUE)
-                     ->getGeneratedUrl(),
-      ]);
-      $info[] = $this->t('<strong>Back up your database</strong>. This process will change your database values and in case of emergency you may need to revert to a backup.');
+      $info[] = $this->t('If your previous site has private files to be migrated, a copy of your files directory must be accessible on the host this site is on.');
+      $info[] = $this->t('In general, enable all modules on this site that are enabled on the previous site. For example, if you have used the book module on the previous site then you must enable the book module on this site for that data to be available on this site.');
+      $info[] = $this->t('Put this site into <a href=":url">maintenance mode</a>.', [
+                  ':url' => Url::fromRoute('system.site_maintenance_mode')
+                  ->toString(TRUE)
+                  ->getGeneratedUrl(),
+                ]);
 
       $form['info'] = [
         '#theme' => 'item_list',
         '#list_type' => 'ol',
         '#items' => $info,
       ];
+
       $form['info_footer'] = [
-        '#markup' => '<p>' . $this->t('When you have performed the steps above, you may proceed.') . '</p>',
+        '#markup' => '<p>' . $this->t('This upgrade can take a long time. It is better to import a local copy of your site instead of directly importing from your live site.'),
       ];
+
       $validate = [];
     }
 
