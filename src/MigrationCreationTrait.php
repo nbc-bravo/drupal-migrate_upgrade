@@ -36,16 +36,20 @@ trait MigrationCreationTrait {
     // Set up the connection.
     Database::addConnectionInfo('upgrade', 'default', $database);
     $connection = Database::getConnection('default', 'upgrade');
-
     if (!$drupal_version = $this->getLegacyDrupalVersion($connection)) {
       throw new \Exception($this->t('Source database does not contain a recognizable Drupal version.'));
     }
+    $database_state['key'] = 'upgrade';
+    $database_state['database'] = $database;
+    $database_state_key = 'migrate_upgrade_' . $drupal_version;
+    \Drupal::state()->set($database_state_key, $database_state);
 
     $version_tag = 'Drupal ' . $drupal_version;
 
     $template_storage = \Drupal::service('migrate.template_storage');
     $migration_templates = $template_storage->findTemplatesByTag($version_tag);
     foreach ($migration_templates as $id => $template) {
+      $migration_templates[$id]['source']['database_state_key'] = $database_state_key;
       // Configure file migrations so they can find the files.
       if ($template['destination']['plugin'] == 'entity:file') {
         if ($source_base_path) {
@@ -54,10 +58,6 @@ trait MigrationCreationTrait {
           $migration_templates[$id]['destination']['source_base_path'] = $source_base_path;
         }
       }
-      // @todo: Use a group to hold the db info, so we don't have to stuff it
-      // into every migration.
-      $migration_templates[$id]['source']['key'] = 'upgrade';
-      $migration_templates[$id]['source']['database'] = $database;
     }
 
     // Let the builder service create our migration configuration entities from
