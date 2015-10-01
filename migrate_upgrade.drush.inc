@@ -37,8 +37,13 @@ function drush_migrate_upgrade() {
 
   $runner = new MigrateUpgradeDrushRunner();
 
-  $runner->configure();
-  if (!$configure_only) {
-    $runner->import();
+  try {
+    $runner->configure();
+    if (!$configure_only) {
+      $runner->import();
+    }
+  }
+  catch (\Exception $e) {
+    drush_log($e->getMessage(), 'error');
   }
 }
