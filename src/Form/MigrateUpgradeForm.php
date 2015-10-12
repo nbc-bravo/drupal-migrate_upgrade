@@ -336,7 +336,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       'source_module' => 'path',
       'destination_module' => 'path',
     ],
-    'd6_search_page' => [
+    'search_page' => [
       'source_module' => 'search',
       'destination_module' => 'search',
     ],
