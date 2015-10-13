@@ -53,4 +53,43 @@ class MigrateUpgradeDrushRunner {
     }
   }
 
+  /**
+   * Rolls back the configured migrations.
+   */
+  public function rollback() {
+    $log = new DrushLogMigrateMessage();
+    $query = \Drupal::entityQuery('migration');
+    $names = $query->execute();
+
+    // Order the migrations according to their dependencies.
+    /** @var MigrationInterface[] $migrations */
+    $migrations = \Drupal::entityManager()
+       ->getStorage('migration')
+       ->loadMultiple($names);
+    // Assume we want all those tagged 'Drupal %'.
+    foreach ($migrations as $migration_id => $migration) {
+      $keep = FALSE;
+      $tags = $migration->get('migration_tags');
+      foreach ($tags as $tag) {
+        if (strpos($tag, 'Drupal ') === 0) {
+          $keep = TRUE;
+          break;
+        }
+      }
+      if (!$keep) {
+        unset($migrations[$migration_id]);
+      }
+    }
+    // Roll back in reverse order.
+    $this->migrationList = array_reverse($migrations);
+
+    foreach ($this->migrationList as $migration_id => $migration) {
+      drush_print(dt('Rolling back @migration', ['@migration' => $migration_id]));
+      $executable = new MigrateExecutable($migration, $log);
+      // drush_op() provides --simulate support.
+      drush_op([$executable, 'rollback']);
+      $migration->delete();
+    }
+  }
+
 }

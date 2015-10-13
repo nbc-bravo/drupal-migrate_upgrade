@@ -24,6 +24,13 @@ function migrate_upgrade_drush_command() {
     ],
     'drupal dependencies' => ['migrate_upgrade'],
   ];
+  $items['migrate-upgrade-rollback'] = [
+    'description' => 'Rolls back and removes upgrade migrations.',
+    'examples' => [
+      'migrate-upgrade-rollback' => 'Rolls back a previously-run upgrade',
+    ],
+    'drupal dependencies' => ['migrate_upgrade'],
+  ];
 
   return $items;
 }
@@ -41,9 +48,39 @@ function drush_migrate_upgrade() {
     $runner->configure();
     if (!$configure_only) {
       $runner->import();
+      \Drupal::state()->set('migrate_upgrade.performed', REQUEST_TIME);
     }
   }
   catch (\Exception $e) {
     drush_log($e->getMessage(), 'error');
+  }
+}
+
+/**
+ * Rolls back any upgrade migrations that are present, and deletes the migrations
+ * themselves.
+ */
+function drush_migrate_upgrade_rollback() {
+  if ($date_performed = \Drupal::state()->get('migrate_upgrade.performed')) {
+    if (drush_confirm(dt('All migrations tagged as \'Drupal\' will be rolled back. Are you sure?'))) {
+      $runner = new MigrateUpgradeDrushRunner();
+
+      try {
+        drush_log(dt('Rolling back the upgrades performed @date',
+          ['@date' => \Drupal::service('date.formatter')->format($date_performed)]));
+        $runner->rollback();
+        \Drupal::state()->delete('migrate_upgrade.performed');
+        drush_log(dt('Rolled back upgrades'));
+      }
+      catch (\Exception $e) {
+        drush_log($e->getMessage(), 'error');
+      }
+    }
+    else {
+      drush_user_abort();
+    }
+  }
+  else {
+    drush_log(dt('No upgrade operation has been performed.'), 'warning');
   }
 }
