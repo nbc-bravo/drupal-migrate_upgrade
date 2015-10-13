@@ -10,7 +10,6 @@ use Drupal\migrate\Entity\Migration;
 use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate\MigrateExecutable;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
-use Drupal\migrate_tools\DrushLogMigrateMessage;
 
 class MigrateUpgradeDrushRunner {
 

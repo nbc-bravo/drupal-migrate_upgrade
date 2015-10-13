@@ -9,5 +9,3 @@ dependencies:
   - migrate
   - migrate_drupal
   - dblog
-  - migrate_plus
-  - migrate_tools
