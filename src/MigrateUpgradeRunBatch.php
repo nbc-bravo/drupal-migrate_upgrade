@@ -10,8 +10,10 @@ namespace Drupal\migrate_upgrade;
 use Drupal\migrate\Entity\Migration;
 use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate\Event\MigrateEvents;
+use Drupal\migrate\Event\MigrateMapDeleteEvent;
 use Drupal\migrate\Event\MigrateMapSaveEvent;
 use Drupal\migrate\Event\MigratePostRowSaveEvent;
+use Drupal\migrate\Event\MigrateRowDeleteEvent;
 use Drupal\migrate\MigrateExecutable;
 use Drupal\Core\Url;
 
@@ -46,17 +48,27 @@ class MigrateUpgradeRunBatch {
   /**
    * Run a single migration batch.
    *
-   * @param $initial_ids
+   * @param array $initial_ids
    *   The full set of migration IDs to import.
+   * @param string $operation
+   *   'import' or 'rollback'.
    * @param $context
    *   The batch context.
    */
-  public static function run($initial_ids, &$context) {
+  public static function run($initial_ids, $operation, &$context) {
     if (!static::$listenersAdded) {
-      \Drupal::service('event_dispatcher')->addListener(MigrateEvents::POST_ROW_SAVE,
-        array(get_class(), 'onPostRowSave'));
-      \Drupal::service('event_dispatcher')->addListener(MigrateEvents::MAP_SAVE,
-        array(get_class(), 'onMapSave'));
+      if ($operation == 'import') {
+        \Drupal::service('event_dispatcher')->addListener(MigrateEvents::POST_ROW_SAVE,
+          [get_class(), 'onPostRowSave']);
+        \Drupal::service('event_dispatcher')->addListener(MigrateEvents::MAP_SAVE,
+          [get_class(), 'onMapSave']);
+      }
+      else {
+        \Drupal::service('event_dispatcher')->addListener(MigrateEvents::POST_ROW_DELETE,
+          [get_class(), 'onPostRowDelete']);
+        \Drupal::service('event_dispatcher')->addListener(MigrateEvents::MAP_DELETE,
+          [get_class(), 'onMapDelete']);
+      }
       static::$maxExecTime = ini_get('max_execution_time');
       if (static::$maxExecTime <= 0) {
         static::$maxExecTime = 60;
@@ -75,6 +87,7 @@ class MigrateUpgradeRunBatch {
       $context['sandbox']['messages'] = [];
       $context['results']['failures'] = 0;
       $context['results']['successes'] = 0;
+      $context['results']['operation'] = $operation;
     }
 
     $migration_id = reset($context['sandbox']['migration_ids']);
@@ -87,7 +100,12 @@ class MigrateUpgradeRunBatch {
       $migration_name = $migration->label() ? $migration->label() : $migration_id;
 
       try  {
-        $migration_status = $executable->import();
+        if ($operation == 'import') {
+          $migration_status = $executable->import();
+        }
+        else {
+          $migration_status = $executable->rollback();
+        }
       }
       catch (\Exception $e) {
         static::logger()->error($e->getMessage());
@@ -96,9 +114,24 @@ class MigrateUpgradeRunBatch {
 
       switch ($migration_status) {
         case MigrationInterface::RESULT_COMPLETED:
-          $singular_message = 'Upgraded @migration (processed 1 item total)';
-          $plural_message = 'Upgraded @migration (processed @num_processed items total)';
-          $processed = $migration->getIdMap()->processedCount();
+          if ($operation == 'import') {
+            $singular_message = 'Upgraded @migration (processed 1 item total)';
+            $plural_message = 'Upgraded @migration (processed @num_processed items total)';
+          }
+          else {
+            $singular_message = 'Rolled back @migration (processed 1 item total)';
+            $plural_message = 'Rolled back @migration (processed @num_processed items total)';
+            $migration->delete();
+          }
+          // @todo: Not quite right (although it will appear to be right most of the time).
+          // We should instead accumulate per-migration total processed numbers in
+          // the sandbox.
+          if ($operation == 'import') {
+            $processed = $migration->getIdMap()->processedCount();
+          }
+          else {
+            $processed = static::$numProcessed;
+          }
           $message = \Drupal::translation()->formatPlural(
             $processed, $singular_message, $plural_message,
             ['@migration' => $migration_name, '@num_processed' => $processed]);
@@ -109,8 +142,8 @@ class MigrateUpgradeRunBatch {
           break;
 
         case MigrationInterface::RESULT_INCOMPLETE:
-          $singular_message = 'Continuing with @migration (processed 1 item)';
-          $plural_message = 'Continuing with @migration (processed @num_processed items)';
+            $singular_message = 'Continuing with @migration (processed 1 item)';
+            $plural_message = 'Continuing with @migration (processed @num_processed items)';
           $context['sandbox']['messages'][] = \Drupal::translation()->formatPlural(
             static::$numProcessed, $singular_message, $plural_message,
             ['@migration' => $migration_name, '@num_processed' => static::$numProcessed]);
@@ -118,18 +151,18 @@ class MigrateUpgradeRunBatch {
           break;
 
         case MigrationInterface::RESULT_STOPPED:
-          $context['sandbox']['messages'][] = t('Upgrade stopped by request');
+          $context['sandbox']['messages'][] = t('Operation stopped by request');
           break;
 
         case MigrationInterface::RESULT_FAILED:
-          $context['sandbox']['messages'][] = t('Upgrade of @migration failed', ['@migration' => $migration_name]);
+          $context['sandbox']['messages'][] = t('Operation on @migration failed', ['@migration' => $migration_name]);
           $context['results']['failures']++;
-          static::logger()->error('Upgrade of @migration failed', ['@migration' => $migration_name]);
+          static::logger()->error('Operation on @migration failed', ['@migration' => $migration_name]);
           break;
 
         case MigrationInterface::RESULT_SKIPPED:
-          $context['sandbox']['messages'][] = t('Upgrade of @migration skipped due to unfulfilled dependencies', ['@migration' => $migration_name]);
-          static::logger()->error('Upgrade of @migration skipped due to unfulfilled dependencies', ['@migration' => $migration_name]);
+          $context['sandbox']['messages'][] = t('Operation on @migration skipped due to unfulfilled dependencies', ['@migration' => $migration_name]);
+          static::logger()->error('Operation on @migration skipped due to unfulfilled dependencies', ['@migration' => $migration_name]);
           break;
 
         case MigrationInterface::RESULT_DISABLED:
@@ -165,7 +198,13 @@ class MigrateUpgradeRunBatch {
         $migration_id = reset($context['sandbox']['migration_ids']);
         $migration = Migration::load($migration_id);
         $migration_name = $migration->label() ? $migration->label() : $migration_id;
-        $context['message'] = t('Currently upgrading @migration (@current of @max total tasks)',
+        if ($operation == 'import') {
+          $message = 'Currently upgrading @migration (@current of @max total tasks)';
+        }
+        else {
+          $message = 'Currently rolling back @migration (@current of @max total tasks)';
+        }
+        $context['message'] = t($message,
           ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
            '@max' => $context['sandbox']['max']]) . "<br />\n" . $context['message'];
       }
@@ -208,18 +247,34 @@ class MigrateUpgradeRunBatch {
 
     // If we had any successes lot that for the user.
     if ($successes > 0) {
-      drupal_set_message(t('Completed @count successfully.', ['@count' => $translation->formatPlural($successes, '1 upgrade task', '@count upgrade tasks')]));
+      if ($results['operation'] == 'import') {
+        drupal_set_message(t('Completed @count successfully.', ['@count' => $translation->formatPlural($successes, '1 upgrade task', '@count upgrade tasks')]));
+      }
+      else {
+        drupal_set_message(t('Completed @count successfully.', ['@count' => $translation->formatPlural($successes, '1 rollback task', '@count rollback tasks')]));
+      }
     }
 
     // If we had failures, log them and show the migration failed.
     if ($failures > 0) {
-      drupal_set_message(t('@count failed', ['@count' => $translation->formatPlural($failures, '1 upgrade', '@count upgrades')]), 'error');
-      drupal_set_message(t('Upgrade process not completed'), 'error');
+      if ($results['operation'] == 'import') {
+        drupal_set_message(t('@count failed', ['@count' => $translation->formatPlural($failures, '1 upgrade', '@count upgrades')]), 'error');
+        drupal_set_message(t('Upgrade process not completed'), 'error');
+      }
+      else {
+        drupal_set_message(t('@count failed', ['@count' => $translation->formatPlural($failures, '1 rollback', '@count rollbacks')]), 'error');
+        drupal_set_message(t('Rollback process not completed'), 'error');
+      }
     }
     else {
-      // Everything went off without a hitch. We may not have had successes but
-      // we didn't have failures so this is fine.
-      drupal_set_message(t('Congratulations, you upgraded Drupal!'));
+      if ($results['operation'] == 'import') {
+        // Everything went off without a hitch. We may not have had successes but
+        // we didn't have failures so this is fine.
+        drupal_set_message(t('Congratulations, you upgraded Drupal!'));
+      }
+      else {
+        drupal_set_message(t('Rollback of the upgrade is complete - you may now start the upgrade process from scratch.'));
+      }
     }
 
     if (\Drupal::moduleHandler()->moduleExists('dblog')) {
@@ -242,12 +297,35 @@ class MigrateUpgradeRunBatch {
   }
 
   /**
+   * React to item deletion.
+   *
+   * @param \Drupal\migrate\Event\MigrateRowDeleteEvent $event
+   *   The post-save event.
+   */
+  public static function onPostRowDelete(MigrateRowDeleteEvent $event) {
+    // We want to interrupt this batch and start a fresh one.
+    if ((time() - REQUEST_TIME) > static::$maxExecTime) {
+      $event->getMigration()->interruptMigration(MigrationInterface::RESULT_INCOMPLETE);
+    }
+  }
+
+  /**
    * Count up any map save events.
    *
    * @param \Drupal\migrate\Event\MigrateMapSaveEvent $event
    *   The map event.
    */
   public static function onMapSave(MigrateMapSaveEvent $event) {
+    static::$numProcessed++;
+  }
+
+  /**
+   * Count up any map delete events.
+   *
+   * @param \Drupal\migrate\Event\MigrateMapDeleteEvent $event
+   *   The map event.
+   */
+  public static function onMapDelete(MigrateMapDeleteEvent $event) {
     static::$numProcessed++;
   }
 

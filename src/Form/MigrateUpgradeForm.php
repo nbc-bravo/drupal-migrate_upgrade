@@ -666,17 +666,15 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
     switch ($form_state->getValue('upgrade_option')) {
       case static::MIGRATE_UPGRADE_INCREMENTAL:
         $form_state->setValue('step', 'confirm');
-        $form_state->setRebuild();
         break;
       case static::MIGRATE_UPGRADE_ROLLBACK:
-        $form_state->setValue('step', 'credentials');
-        drupal_set_message($this->t('Rollback of an upgrade process is not yet implemented.'), 'warning');
+        $form_state->setValue('step', 'confirm');
         break;
       default:
         $form_state->setValue('step', 'credentials');
-        $form_state->setRebuild();
         break;
     }
+    $form_state->setRebuild();
   }
 
   /**
@@ -792,6 +790,11 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
    *   The current state of the form.
    */
   public function validateCredentialForm(array &$form, FormStateInterface $form_state) {
+    // Skip if rollback was chosen.
+    if ($form_state->getValue('upgrade_option') == static::MIGRATE_UPGRADE_ROLLBACK) {
+      return;
+    }
+
     // Retrieve the database driver from the form, use reflection to get the
     // namespace and then construct a valid database array the same as in
     // settings.php.
@@ -829,7 +832,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
         }
         if ($is_drupal_migration) {
           $source = $migration->get('source');
-          if ($database = $source['database']) {
+          if ($database = \Drupal::state()->get($source['database_state_key'])['database']) {
             break;
           }
         }
@@ -885,81 +888,98 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
    *   The form structure.
    */
   public function buildConfirmForm(array $form, FormStateInterface $form_state) {
+    $rollback = $form_state->getValue('upgrade_option') == static::MIGRATE_UPGRADE_ROLLBACK;
+    if ($rollback) {
+      $form_state->setStorage(['upgrade_option' => static::MIGRATE_UPGRADE_ROLLBACK]);
+    }
     $form['#title'] = $this->getQuestion();
 
     $form['#attributes']['class'][] = 'confirmation';
     $form['description'] = ['#markup' => $this->getDescription()];
     $form[$this->getFormName()] = ['#type' => 'hidden', '#value' => 1];
 
-    $form['module_list'] = [
-      '#type' => 'table',
-      '#header' => [
-        $this->t('Source module'),
-        $this->t('Destination module'),
-        $this->t('Data to be upgraded')
-      ],
-    ];
+    if ($rollback) {
+      $form['rollback'] = [
+        '#markup' => $this->t('All previously-imported content, as well as configuration such as field definitions, will be removed.'),
+      ];
+    }
+    else {
+      $form['module_list'] = [
+        '#type' => 'table',
+        '#header' => [
+          $this->t('Source module'),
+          $this->t('Destination module'),
+          $this->t('Data to be upgraded')
+        ],
+      ];
 
-    $table_data = [];
-    $system_data = [];
-    foreach ($form_state->get('migration_ids') as $migration_id) {
-      /** @var MigrationInterface $migration */
-      $migration = Migration::load($migration_id);
-      // Fetch the system data at the first opportunity.
-      if (empty($system_data) && is_a($migration->getSourcePlugin(), '\Drupal\migrate_drupal\Plugin\migrate\source\DrupalSqlBase')) {
-        $system_data = $migration->getSourcePlugin()->getSystemData();
+      $table_data = [];
+      $system_data = [];
+      foreach ($form_state->get('migration_ids') as $migration_id) {
+        /** @var MigrationInterface $migration */
+        $migration = Migration::load($migration_id);
+        // Fetch the system data at the first opportunity.
+        if (empty($system_data) && is_a($migration->getSourcePlugin(), '\Drupal\migrate_drupal\Plugin\migrate\source\DrupalSqlBase')) {
+          $system_data = $migration->getSourcePlugin()->getSystemData();
+        }
+        $template_id = $migration->get('template');
+        $source_module = $this->moduleUpgradePaths[$template_id]['source_module'];
+        $destination_module = $this->moduleUpgradePaths[$template_id]['destination_module'];
+        $table_data[$source_module][$destination_module][$migration_id] = $migration->label();
       }
-      $template_id = $migration->get('template');
-      $source_module = $this->moduleUpgradePaths[$template_id]['source_module'];
-      $destination_module = $this->moduleUpgradePaths[$template_id]['destination_module'];
-      $table_data[$source_module][$destination_module][$migration_id] = $migration->label();
-    }
-    ksort($table_data);
-    foreach ($table_data as $source_module => $destination_module_info) {
-      ksort($table_data[$source_module]);
-    }
-    $last_source_module = $last_destination_module = '';
-    foreach ($table_data as $source_module => $destination_module_info) {
-      foreach ($destination_module_info as $destination_module => $migration_ids) {
-        foreach ($migration_ids as $migration_id => $migration_label) {
-          if ($source_module == $last_source_module) {
-            $display_source_module = '';
+      ksort($table_data);
+      foreach ($table_data as $source_module => $destination_module_info) {
+        ksort($table_data[$source_module]);
+      }
+      $last_source_module = $last_destination_module = '';
+      foreach ($table_data as $source_module => $destination_module_info) {
+        foreach ($destination_module_info as $destination_module => $migration_ids) {
+          foreach ($migration_ids as $migration_id => $migration_label) {
+            if ($source_module == $last_source_module) {
+              $display_source_module = '';
+            }
+            else {
+              $display_source_module = $source_module;
+              $last_source_module = $source_module;
+            }
+            if ($destination_module == $last_destination_module) {
+              $display_destination_module = '';
+            }
+            else {
+              $display_destination_module = $destination_module;
+              $last_destination_module = $destination_module;
+            }
+            $form['module_list'][$migration_id] = [
+              'source_module' => ['#plain_text' => $display_source_module],
+              'destination_module' => ['#plain_text' => $display_destination_module],
+              'migration' => ['#plain_text' => $migration_label],
+            ];
           }
-          else {
-            $display_source_module = $source_module;
-            $last_source_module = $source_module;
-          }
-          if ($destination_module == $last_destination_module) {
-            $display_destination_module = '';
-          }
-          else {
-            $display_destination_module = $destination_module;
-            $last_destination_module = $destination_module;
-          }
-          $form['module_list'][$migration_id] = [
-            'source_module' => ['#plain_text' => $display_source_module],
-            'destination_module' => ['#plain_text' => $display_destination_module],
-            'migration' => ['#plain_text' => $migration_label],
+        }
+      }
+
+      $unmigrated_source_modules = array_diff_key($system_data['module'], $table_data);
+      ksort($unmigrated_source_modules);
+      foreach ($unmigrated_source_modules as $source_module => $module_data) {
+        if ($module_data['status']) {
+          $form['module_list'][$source_module] = [
+            'source_module' => ['#plain_text' => $source_module],
+            'destination_module' => ['#plain_text' => ''],
+            'migration' => ['#plain_text' => 'No upgrade path available'],
           ];
         }
       }
     }
-
-    $unmigrated_source_modules = array_diff_key($system_data['module'], $table_data);
-    ksort($unmigrated_source_modules);
-    foreach ($unmigrated_source_modules as $source_module => $module_data) {
-      if ($module_data['status']) {
-        $form['module_list'][$source_module] = [
-          'source_module' => ['#plain_text' => $source_module],
-          'destination_module' => ['#plain_text' => ''],
-          'migration' => ['#plain_text' => 'No upgrade path available'],
-        ];
-      }
+    if ($rollback) {
+      $confirm_text = $this->t('Perform rollback');
+    }
+    else {
+      $confirm_text = $this->t('Perform upgrade');
     }
     $form['actions'] = ['#type' => 'actions'];
     $form['actions']['submit'] = [
       '#type' => 'submit',
-      '#value' => $this->getConfirmText(),
+      '#value' => $confirm_text,
       '#button_type' => 'primary',
       '#validate' => [],
       '#submit' => ['::submitConfirmForm'],
@@ -983,23 +1003,70 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
    *   The current state of the form.
    */
   public function submitConfirmForm(array &$form, FormStateInterface $form_state) {
-    $batch = [
-      'title' => $this->t('Running upgrade'),
-      'progress_message' => '',
-      'operations' => [
-        [
-          ['Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'],
-          [$form_state->get('migration_ids')]
+    $storage = $form_state->getStorage();
+    if ($storage['upgrade_option'] == static::MIGRATE_UPGRADE_ROLLBACK) {
+      $query = \Drupal::entityQuery('migration');
+      $names = $query->execute();
+
+      // Order the migrations according to their dependencies.
+      /** @var MigrationInterface[] $migrations */
+      $migrations = \Drupal::entityManager()
+         ->getStorage('migration')
+         ->loadMultiple($names);
+      // Assume we want all those tagged 'Drupal %'.
+      foreach ($migrations as $migration_id => $migration) {
+        $keep = FALSE;
+        $tags = $migration->get('migration_tags');
+        foreach ($tags as $tag) {
+          if (strpos($tag, 'Drupal ') === 0) {
+            $keep = TRUE;
+            break;
+          }
+        }
+        if (!$keep) {
+          unset($migrations[$migration_id]);
+        }
+      }
+      // Roll back in reverse order.
+      $migrations = array_reverse($migrations);
+
+      $batch = [
+        'title' => $this->t('Rolling back upgrade'),
+        'progress_message' => '',
+        'operations' => [
+          [
+            ['Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'],
+            [array_keys($migrations), 'rollback']
+          ],
         ],
-      ],
-      'finished' => [
-        'Drupal\migrate_upgrade\MigrateUpgradeRunBatch',
-        'finished'
-      ],
-    ];
-    batch_set($batch);
-    $form_state->setRedirect('<front>');
-    \Drupal::state()->set('migrate_upgrade.performed', REQUEST_TIME);
+        'finished' => [
+          'Drupal\migrate_upgrade\MigrateUpgradeRunBatch',
+          'finished'
+        ],
+      ];
+      batch_set($batch);
+      $form_state->setRedirect('migrate_upgrade.upgrade');
+      \Drupal::state()->delete('migrate_upgrade.performed');
+    }
+    else {
+      $batch = [
+        'title' => $this->t('Running upgrade'),
+        'progress_message' => '',
+        'operations' => [
+          [
+            ['Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'],
+            [$form_state->get('migration_ids'), 'import']
+          ],
+        ],
+        'finished' => [
+          'Drupal\migrate_upgrade\MigrateUpgradeRunBatch',
+          'finished'
+        ],
+      ];
+      batch_set($batch);
+      $form_state->setRedirect('<front>');
+      \Drupal::state()->set('migrate_upgrade.performed', REQUEST_TIME);
+    }
   }
 
   /**
