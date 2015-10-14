@@ -895,7 +895,6 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
     $form['#title'] = $this->getQuestion();
 
     $form['#attributes']['class'][] = 'confirmation';
-    $form['description'] = ['#markup' => $this->getDescription()];
     $form[$this->getFormName()] = ['#type' => 'hidden', '#value' => 1];
 
     if ($rollback) {
@@ -904,15 +903,6 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       ];
     }
     else {
-      $form['module_list'] = [
-        '#type' => 'table',
-        '#header' => [
-          $this->t('Source module'),
-          $this->t('Destination module'),
-          $this->t('Data to be upgraded')
-        ],
-      ];
-
       $table_data = [];
       $system_data = [];
       foreach ($form_state->get('migration_ids') as $migration_id) {
@@ -931,44 +921,70 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       foreach ($table_data as $source_module => $destination_module_info) {
         ksort($table_data[$source_module]);
       }
-      $last_source_module = $last_destination_module = '';
-      foreach ($table_data as $source_module => $destination_module_info) {
-        foreach ($destination_module_info as $destination_module => $migration_ids) {
-          foreach ($migration_ids as $migration_id => $migration_label) {
-            if ($source_module == $last_source_module) {
-              $display_source_module = '';
-            }
-            else {
-              $display_source_module = $source_module;
-              $last_source_module = $source_module;
-            }
-            if ($destination_module == $last_destination_module) {
-              $display_destination_module = '';
-            }
-            else {
-              $display_destination_module = $destination_module;
-              $last_destination_module = $destination_module;
-            }
-            $form['module_list'][$migration_id] = [
-              'source_module' => ['#plain_text' => $display_source_module],
-              'destination_module' => ['#plain_text' => $display_destination_module],
-              'migration' => ['#plain_text' => $migration_label],
-            ];
-          }
-        }
-      }
-
       $unmigrated_source_modules = array_diff_key($system_data['module'], $table_data);
+
+      // Missing migrations.
+      $desc = "The following items will not be upgraded. " .
+        'For more information see <a href="https://www.drupal.org/upgrade/migrate"> Upgrading from Drupal 6 or 7 to Drupal 8</a>.';
+      $form['missing_module_list_title'] = [
+        '#type' => 'item',
+        '#title' => t('Missing upgrade paths'),
+        '#description' => $this->t($desc),
+      ];
+      $form['missing_module_list'] = [
+        '#type' => 'table',
+        '#header' => [
+          $this->t('Source'),
+          $this->t('Destination'),
+        ],
+      ];
+      $missing_count = 0;
       ksort($unmigrated_source_modules);
       foreach ($unmigrated_source_modules as $source_module => $module_data) {
         if ($module_data['status']) {
-          $form['module_list'][$source_module] = [
+          $missing_count++;
+          $form['missing_module_list'][$source_module] = [
             'source_module' => ['#plain_text' => $source_module],
-            'destination_module' => ['#plain_text' => ''],
-            'migration' => ['#plain_text' => 'No upgrade path available'],
+            'destination_module' => ['#plain_text' => 'Missing'],
           ];
         }
       }
+      // Available migrations.
+      $form['available_module_list'] = [
+        '#tree' => TRUE,
+        '#type' => 'details',
+        '#title' => t('Available upgrade paths'),
+      ];
+
+      $form['available_module_list']['module_list'] = [
+        '#type' => 'table',
+        '#header' => [
+          $this->t('Source'),
+          $this->t('Destination'),
+        ],
+      ];
+
+      $available_count = 0;
+      foreach ($table_data as $source_module => $destination_module_info) {
+        $available_count++;
+        $destination_details = [];
+        foreach ($destination_module_info as $destination_module => $migration_ids) {
+          $destination_details[$destination_module] = [
+            '#type' => 'item',
+            '#plain_text' => t($destination_module),
+          ];
+        }
+        $form['available_module_list']['module_list'][$source_module] = [
+          'source_module' => ['#plain_text' => $source_module],
+          'destination_module' => $destination_details,
+        ];
+      }
+      $form['counts'] = [
+        '#type' => 'item',
+        '#title' => "<ul><li>" . t($available_count . ' available upgrade paths') .
+        "</li><li>" . t($missing_count . ' missing upgrade paths') . "</li></ul>",
+        '#weight' => -15,
+      ];
     }
     if ($rollback) {
       $confirm_text = $this->t('Perform rollback');
@@ -1099,7 +1115,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
    * {@inheritdoc}
    */
   public function getDescription() {
-    return $this->t('<p><strong>This operation cannot be undone - be sure you have backed up your site database before proceeding</strong></p>');
+    return $this->t('<p><strong>Upgrade analysis report</strong></p>');
   }
 
   /**
