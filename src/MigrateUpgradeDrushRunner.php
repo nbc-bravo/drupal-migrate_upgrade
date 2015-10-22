@@ -10,6 +10,7 @@ use Drupal\migrate\Entity\Migration;
 use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate\MigrateExecutable;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
+use Drupal\migrate\Plugin\MigrateIdMapInterface;
 
 class MigrateUpgradeDrushRunner {
 
@@ -50,6 +51,15 @@ class MigrateUpgradeDrushRunner {
       $executable = new MigrateExecutable($migration, $log);
       // drush_op() provides --simulate support.
       drush_op([$executable, 'import']);
+      // @todo Remove when https://www.drupal.org/node/2598696 is released.
+      if ($migration_id == 'd6_user' || $migration_id == 'd7_user') {
+        $table = 'migrate_map_' . $migration_id;
+        db_merge($table)
+          ->key(['sourceid1' => 1])
+          // Point at an impossible uid to delete.
+          ->fields(['destid1' => -1])
+          ->execute();
+      }
     }
   }
 
