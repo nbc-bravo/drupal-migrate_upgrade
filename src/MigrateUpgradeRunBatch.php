@@ -117,14 +117,6 @@ class MigrateUpgradeRunBatch {
           if ($operation == 'import') {
             $singular_message = 'Upgraded @migration (processed 1 item total)';
             $plural_message = 'Upgraded @migration (processed @num_processed items total)';
-            // @todo Remove when https://www.drupal.org/node/2598696 is released.
-            if ($migration_id == 'd6_user' || $migration_id == 'd7_user') {
-              $table = 'migrate_map_' . $migration_id;
-              db_merge($table)
-                ->key(['sourceid1' => 1])
-                // Point at an impossible uid to delete.
-                ->fields(['destid1' => -1])
-                ->execute();            }
           }
           else {
             $singular_message = 'Rolled back @migration (processed 1 item total)';
