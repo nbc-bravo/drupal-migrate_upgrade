@@ -8,9 +8,10 @@
 namespace Drupal\migrate_upgrade;
 use Drupal\migrate\Entity\Migration;
 use Drupal\migrate\Entity\MigrationInterface;
+use Drupal\migrate\Event\MigrateEvents;
+use Drupal\migrate\Event\MigrateIdMapMessageEvent;
 use Drupal\migrate\MigrateExecutable;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
-use Drupal\migrate\Plugin\MigrateIdMapInterface;
 
 class MigrateUpgradeDrushRunner {
 
@@ -23,6 +24,13 @@ class MigrateUpgradeDrushRunner {
    * @var array
    */
   protected $migrationList;
+
+  /**
+   * MigrateMessage instance to display messages during the migration process.
+   *
+   * @var \Drupal\migrate_upgrade\DrushLogMigrateMessage
+   */
+  protected static $messages;
 
   /**
    * From the provided source information, instantiate the appropriate migrations
@@ -43,12 +51,16 @@ class MigrateUpgradeDrushRunner {
    * Run the configured migrations.
    */
   public function import() {
-    $log = new DrushLogMigrateMessage();
+    static::$messages = new DrushLogMigrateMessage();
+    if (drush_get_option('debug')) {
+      \Drupal::service('event_dispatcher')->addListener(MigrateEvents::IDMAP_MESSAGE,
+        [get_class(), 'onIdMapMessage']);
+    }
     foreach ($this->migrationList as $migration_id) {
       /** @var MigrationInterface $migration */
       $migration = Migration::load($migration_id);
       drush_print(dt('Upgrading @migration', ['@migration' => $migration_id]));
-      $executable = new MigrateExecutable($migration, $log);
+      $executable = new MigrateExecutable($migration, static::$messages);
       // drush_op() provides --simulate support.
       drush_op([$executable, 'import']);
     }
@@ -58,7 +70,7 @@ class MigrateUpgradeDrushRunner {
    * Rolls back the configured migrations.
    */
   public function rollback() {
-    $log = new DrushLogMigrateMessage();
+    static::$messages = new DrushLogMigrateMessage();
     $query = \Drupal::entityQuery('migration');
     $names = $query->execute();
 
@@ -86,11 +98,31 @@ class MigrateUpgradeDrushRunner {
 
     foreach ($this->migrationList as $migration_id => $migration) {
       drush_print(dt('Rolling back @migration', ['@migration' => $migration_id]));
-      $executable = new MigrateExecutable($migration, $log);
+      $executable = new MigrateExecutable($migration, static::$messages);
       // drush_op() provides --simulate support.
       drush_op([$executable, 'rollback']);
       $migration->delete();
     }
+  }
+
+  /**
+   * Display any messages being logged to the ID map.
+   *
+   * @param \Drupal\migrate\Event\MigrateIdMapMessageEvent $event
+   *   The message event.
+   */
+  public static function onIdMapMessage(MigrateIdMapMessageEvent $event) {
+    if ($event->getLevel() == MigrationInterface::MESSAGE_NOTICE ||
+        $event->getLevel() == MigrationInterface::MESSAGE_INFORMATIONAL) {
+      $type = 'status';
+    }
+    else {
+      $type = 'error';
+    }
+    $source_id_string = implode(',', $event->getSourceIdValues());
+    $message = t('Source ID @source_id: @message',
+      ['@source_id' => $source_id_string, '@message' => $event->getMessage()]);
+    static::$messages->display($message, $type);
   }
 
 }

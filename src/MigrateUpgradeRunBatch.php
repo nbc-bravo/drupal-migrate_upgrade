@@ -10,6 +10,7 @@ namespace Drupal\migrate_upgrade;
 use Drupal\migrate\Entity\Migration;
 use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate\Event\MigrateEvents;
+use Drupal\migrate\Event\MigrateIdMapMessageEvent;
 use Drupal\migrate\Event\MigrateMapDeleteEvent;
 use Drupal\migrate\Event\MigrateMapSaveEvent;
 use Drupal\migrate\Event\MigratePostRowSaveEvent;
@@ -46,6 +47,13 @@ class MigrateUpgradeRunBatch {
   protected static $maxExecTime;
 
   /**
+   * MigrateMessage instance to capture messages during the migration process.
+   *
+   * @var \Drupal\migrate_upgrade\MigrateMessageCapture
+   */
+  protected static $messages;
+
+  /**
    * Run a single migration batch.
    *
    * @param array $initial_ids
@@ -62,6 +70,8 @@ class MigrateUpgradeRunBatch {
           [get_class(), 'onPostRowSave']);
         \Drupal::service('event_dispatcher')->addListener(MigrateEvents::MAP_SAVE,
           [get_class(), 'onMapSave']);
+        \Drupal::service('event_dispatcher')->addListener(MigrateEvents::IDMAP_MESSAGE,
+          [get_class(), 'onIdMapMessage']);
       }
       else {
         \Drupal::service('event_dispatcher')->addListener(MigrateEvents::POST_ROW_DELETE,
@@ -94,8 +104,8 @@ class MigrateUpgradeRunBatch {
     /** @var \Drupal\migrate\Entity\Migration $migration */
     $migration = Migration::load($migration_id);
     if ($migration) {
-      $messages = new MigrateMessageCapture();
-      $executable = new MigrateExecutable($migration, $messages);
+      static::$messages = new MigrateMessageCapture();
+      $executable = new MigrateExecutable($migration, static::$messages);
 
       $migration_name = $migration->label() ? $migration->label() : $migration_id;
 
@@ -177,7 +187,7 @@ class MigrateUpgradeRunBatch {
       }
 
       // Add and log any captured messages.
-      foreach ($messages->getMessages() as $message) {
+      foreach (static::$messages->getMessages() as $message) {
         $context['sandbox']['messages'][] = $message;
         static::logger()->error($message);
       }
@@ -327,6 +337,26 @@ class MigrateUpgradeRunBatch {
    */
   public static function onMapDelete(MigrateMapDeleteEvent $event) {
     static::$numProcessed++;
+  }
+
+  /**
+   * Display any messages being logged to the ID map.
+   *
+   * @param \Drupal\migrate\Event\MigrateIdMapMessageEvent $event
+   *   The message event.
+   */
+  public static function onIdMapMessage(MigrateIdMapMessageEvent $event) {
+    if ($event->getLevel() == MigrationInterface::MESSAGE_NOTICE ||
+        $event->getLevel() == MigrationInterface::MESSAGE_INFORMATIONAL) {
+      $type = 'status';
+    }
+    else {
+      $type = 'error';
+    }
+    $source_id_string = implode(',', $event->getSourceIdValues());
+    $message = t('Source ID @source_id: @message',
+      ['@source_id' => $source_id_string, '@message' => $event->getMessage()]);
+    static::$messages->display($message, $type);
   }
 
 }
