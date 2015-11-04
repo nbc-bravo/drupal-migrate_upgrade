@@ -1060,7 +1060,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
    */
   public function submitConfirmForm(array &$form, FormStateInterface $form_state) {
     $storage = $form_state->getStorage();
-    if ($storage['upgrade_option'] == static::MIGRATE_UPGRADE_ROLLBACK) {
+    if (isset($storage['upgrade_option']) && $storage['upgrade_option'] == static::MIGRATE_UPGRADE_ROLLBACK) {
       $query = \Drupal::entityQuery('migration');
       $names = $query->execute();
 
