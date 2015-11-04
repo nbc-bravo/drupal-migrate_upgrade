@@ -52,6 +52,14 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       'source_module' => 'aggregator',
       'destination_module' => 'aggregator',
     ],
+    'd7_aggregator_feed' => [
+      'source_module' => 'aggregator',
+      'destination_module' => 'aggregator',
+    ],
+    'd7_aggregator_item' => [
+      'source_module' => 'aggregator',
+      'destination_module' => 'aggregator',
+    ],
     'd7_aggregator_settings' => [
       'source_module' => 'aggregator',
       'destination_module' => 'aggregator',
@@ -148,11 +156,15 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       'source_module' => 'comment',
       'destination_module' => 'comment',
     ],
-    'd6_contact_category' => [
+    'contact_category' => [
       'source_module' => 'contact',
       'destination_module' => 'contact',
     ],
     'd6_contact_settings' => [
+      'source_module' => 'contact',
+      'destination_module' => 'contact',
+    ],
+    'd7_contact_settings' => [
       'source_module' => 'contact',
       'destination_module' => 'contact',
     ],
@@ -256,7 +268,15 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       'source_module' => 'image',
       'destination_module' => 'image',
     ],
+    'd7_image_styles' => [
+      'source_module' => 'image',
+      'destination_module' => 'image',
+    ],
     'd7_language_negotiation_settings' => [
+      'source_module' => 'locale',
+      'destination_module' => 'language',
+    ],
+    'language' => [
       'source_module' => 'locale',
       'destination_module' => 'language',
     ],
@@ -347,6 +367,18 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
     'd7_search_settings' => [
       'source_module' => 'search',
       'destination_module' => 'search',
+    ],
+    'd7_shortcut' => [
+      'source_module' => 'shortcut',
+      'destination_module' => 'shortcut',
+    ],
+    'd7_shortcut_set' => [
+      'source_module' => 'shortcut',
+      'destination_module' => 'shortcut',
+    ],
+    'd7_shortcut_set_users' => [
+      'source_module' => 'shortcut',
+      'destination_module' => 'shortcut',
     ],
     'd6_simpletest_settings' => [
       'source_module' => 'simpletest',
@@ -464,7 +496,15 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       'source_module' => 'text',
       'destination_module' => 'text',
     ],
+    'd7_tracker_node' => [
+      'source_module' => 'tracker',
+      'destination_module' => 'tracker',
+    ],
     'd7_tracker_settings' => [
+      'source_module' => 'tracker',
+      'destination_module' => 'tracker',
+    ],
+    'd7_tracker_user' => [
       'source_module' => 'tracker',
       'destination_module' => 'tracker',
     ],
