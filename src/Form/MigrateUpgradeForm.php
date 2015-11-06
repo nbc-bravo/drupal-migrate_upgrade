@@ -771,20 +771,16 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
           ':input[name=driver]' => ['value' => $key],
         ]
       ];
+
+      // Move the host fields out of advanced settings.
+      if (isset ($form['database']['settings'][$key]['advanced_options']['host'])) {
+        $form['database']['settings'][$key]['host'] = $form['database']['settings'][$key]['advanced_options']['host'];
+        $form['database']['settings'][$key]['host']['#title'] = 'Database host';
+        $form['database']['settings'][$key]['host']['#weight'] = -1;
+        unset($form['database']['settings'][$key]['database']['#default_value']);
+        unset($form['database']['settings'][$key]['advanced_options']['host']);
+      }
     }
-
-    // Move the host fields out of advanced settings.
-    $form['database']['settings']['mysql']['host'] = $form['database']['settings']['mysql']['advanced_options']['host'];
-    $form['database']['settings']['mysql']['host']['#title'] = 'Database host';
-    $form['database']['settings']['mysql']['host']['#weight'] = -1;
-    unset($form['database']['settings']['mysql']['database']['#default_value']);
-    unset($form['database']['settings']['mysql']['advanced_options']['host']);
-
-    $form['database']['settings']['pgsql']['host'] = $form['database']['settings']['pgsql']['advanced_options']['host'];
-    $form['database']['settings']['pgsql']['host']['#title'] = 'Database host';
-    $form['database']['settings']['pgsql']['host']['#weight'] = -1;
-    unset($form['database']['settings']['pgsql']['database']['#default_value']);
-    unset($form['database']['settings']['pgsql']['advanced_options']['host']);
 
     $form['source'] = [
       '#type' => 'details',
