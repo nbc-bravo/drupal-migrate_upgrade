@@ -508,7 +508,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       'source_module' => 'tracker',
       'destination_module' => 'tracker',
     ],
-    'd6_update_settings' => [
+    'update_settings' => [
       'source_module' => 'update',
       'destination_module' => 'update',
     ],
