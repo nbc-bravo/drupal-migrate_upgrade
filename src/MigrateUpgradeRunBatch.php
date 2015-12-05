@@ -92,6 +92,8 @@ class MigrateUpgradeRunBatch {
     if (!isset($context['sandbox']['migration_ids'])) {
       $context['sandbox']['max'] = count($initial_ids);
       $context['sandbox']['current'] = 1;
+      // Total number processed for this migration.
+      $context['sandbox']['num_processed'] = 0;
       // migration_ids will be the list of IDs remaining to run.
       $context['sandbox']['migration_ids'] = $initial_ids;
       $context['sandbox']['messages'] = [];
@@ -99,6 +101,9 @@ class MigrateUpgradeRunBatch {
       $context['results']['successes'] = 0;
       $context['results']['operation'] = $operation;
     }
+
+    // Number processed in this batch.
+    static::$numProcessed = 0;
 
     $migration_id = reset($context['sandbox']['migration_ids']);
     /** @var \Drupal\migrate\Entity\Migration $migration */
@@ -133,21 +138,14 @@ class MigrateUpgradeRunBatch {
             $plural_message = 'Rolled back @migration (processed @num_processed items total)';
             $migration->delete();
           }
-          // @todo: Not quite right (although it will appear to be right most of the time).
-          // We should instead accumulate per-migration total processed numbers in
-          // the sandbox.
-          if ($operation == 'import') {
-            $processed = $migration->getIdMap()->processedCount();
-          }
-          else {
-            $processed = static::$numProcessed;
-          }
+          // Store the number processed in the sandbox.
+          $context['sandbox']['num_processed'] += static::$numProcessed;
           $message = \Drupal::translation()->formatPlural(
-            $processed, $singular_message, $plural_message,
-            ['@migration' => $migration_name, '@num_processed' => $processed]);
+            $context['sandbox']['num_processed'], $singular_message, $plural_message,
+            ['@migration' => $migration_name, '@num_processed' => $context['sandbox']['num_processed']]);
           $context['sandbox']['messages'][] = $message;
           static::logger()->notice($message);
-          static::$numProcessed = 0;
+          $context['sandbox']['num_processed'] = 0;
           $context['results']['successes']++;
           break;
 
@@ -157,7 +155,7 @@ class MigrateUpgradeRunBatch {
           $context['sandbox']['messages'][] = \Drupal::translation()->formatPlural(
             static::$numProcessed, $singular_message, $plural_message,
             ['@migration' => $migration_name, '@num_processed' => static::$numProcessed]);
-          static::$numProcessed = 0;
+          $context['sandbox']['num_processed'] += static::$numProcessed;
           break;
 
         case MigrationInterface::RESULT_STOPPED:
