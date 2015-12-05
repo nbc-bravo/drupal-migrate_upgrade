@@ -105,7 +105,7 @@ trait MigrationCreationTrait {
     // we're querying. Catch exceptions and report that the source database is
     // not Drupal.
 
-    // Druppal 5/6/7 can be detected by the schema_version in the system table.
+    // Drupal 5/6/7 can be detected by the schema_version in the system table.
     if ($connection->schema()->tableExists('system')) {
       try {
         $version_string = $connection->query('SELECT schema_version FROM {system} WHERE name = :module', [':module' => 'system'])
