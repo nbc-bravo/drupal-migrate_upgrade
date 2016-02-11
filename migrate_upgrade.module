@@ -13,7 +13,7 @@ use Drupal\Core\Routing\RouteMatchInterface;
 function migrate_upgrade_help($route_name, RouteMatchInterface $route_match) {
   switch ($route_name) {
     case 'help.page.migrate_upgrade':
-      $output = '<p>' . t('The Drupal Upgrade UI module provides a one-click upgrade from an earlier version of Drupal. For more details, see <a href=":migrate">upgrading from previous versions</a>.', [':migrate' => 'https://www.drupal.org/upgrade/migrate']) . '</p>';
+      $output = '<p>' . t('The Drupal Upgrade module provides a one-click upgrade from an earlier version of Drupal. For details, see the <a href=":migrate">online documentation for the Drupal Upgrade module</a> in the handbook on upgrading from previous versions.', [':migrate' => 'https://www.drupal.org/upgrade/migrate']) . '</p>';
       return $output;
   }
 }
