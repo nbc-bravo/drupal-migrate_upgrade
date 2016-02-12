@@ -30,8 +30,9 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
   const MIGRATE_UPGRADE_ROLLBACK = 2;
 
   /**
-   * @todo: Find a mechanism to derive this information from the migrations
-   *   themselves.
+   * @todo: Hardcoding this information is not robust - the migrations
+   * themselves should hold the necessary information.
+   * @see https://www.drupal.org/node/2569805
    *
    * @var array
    */
@@ -960,12 +961,10 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       $unmigrated_source_modules = array_diff_key($system_data['module'], $table_data);
 
       // Missing migrations.
-      $desc = "The following items will not be upgraded. " .
-        'For more information see <a href="https://www.drupal.org/upgrade/migrate"> Upgrading from Drupal 6 or 7 to Drupal 8</a>.';
       $form['missing_module_list_title'] = [
         '#type' => 'item',
         '#title' => t('Missing upgrade paths'),
-        '#description' => $this->t($desc),
+        '#description' => $this->t('The following items will not be upgraded. For more information see <a href="https://www.drupal.org/upgrade/migrate"> Upgrading from Drupal 6 or 7 to Drupal 8</a>.'),
       ];
       $form['missing_module_list'] = [
         '#type' => 'table',
@@ -1017,8 +1016,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       }
       $form['counts'] = [
         '#type' => 'item',
-        '#title' => "<ul><li>" . t($available_count . ' available upgrade paths') .
-        "</li><li>" . t($missing_count . ' missing upgrade paths') . "</li></ul>",
+        '#title' => '<ul><li>' . t('@count available upgrade paths', ['@count' => $available_count]) . '</li><li>' . t('@count missing upgrade paths', ['@count' => $missing_count]) . '</li></ul>',
         '#weight' => -15,
       ];
     }

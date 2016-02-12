@@ -129,20 +129,19 @@ class MigrateUpgradeRunBatch {
 
       switch ($migration_status) {
         case MigrationInterface::RESULT_COMPLETED:
-          if ($operation == 'import') {
-            $singular_message = 'Upgraded @migration (processed 1 item total)';
-            $plural_message = 'Upgraded @migration (processed @num_processed items total)';
-          }
-          else {
-            $singular_message = 'Rolled back @migration (processed 1 item total)';
-            $plural_message = 'Rolled back @migration (processed @num_processed items total)';
-            $migration->delete();
-          }
           // Store the number processed in the sandbox.
           $context['sandbox']['num_processed'] += static::$numProcessed;
-          $message = \Drupal::translation()->formatPlural(
-            $context['sandbox']['num_processed'], $singular_message, $plural_message,
-            ['@migration' => $migration_name, '@num_processed' => $context['sandbox']['num_processed']]);
+          if ($operation == 'import') {
+            $message = \Drupal::translation()->formatPlural(
+              $context['sandbox']['num_processed'], 'Upgraded @migration (processed 1 item total)', 'Upgraded @migration (processed @num_processed items total)',
+              ['@migration' => $migration_name, '@num_processed' => $context['sandbox']['num_processed']]);
+          }
+          else {
+            $message = \Drupal::translation()->formatPlural(
+              $context['sandbox']['num_processed'], 'Rolled back @migration (processed 1 item total)', 'Rolled back @migration (processed @num_processed items total)',
+              ['@migration' => $migration_name, '@num_processed' => $context['sandbox']['num_processed']]);
+            $migration->delete();
+          }
           $context['sandbox']['messages'][] = $message;
           static::logger()->notice($message);
           $context['sandbox']['num_processed'] = 0;
@@ -150,10 +149,8 @@ class MigrateUpgradeRunBatch {
           break;
 
         case MigrationInterface::RESULT_INCOMPLETE:
-            $singular_message = 'Continuing with @migration (processed 1 item)';
-            $plural_message = 'Continuing with @migration (processed @num_processed items)';
           $context['sandbox']['messages'][] = \Drupal::translation()->formatPlural(
-            static::$numProcessed, $singular_message, $plural_message,
+            static::$numProcessed, 'Continuing with @migration (processed 1 item)', 'Continuing with @migration (processed @num_processed items)',
             ['@migration' => $migration_name, '@num_processed' => static::$numProcessed]);
           $context['sandbox']['num_processed'] += static::$numProcessed;
           break;
@@ -207,14 +204,15 @@ class MigrateUpgradeRunBatch {
         $migration = Migration::load($migration_id);
         $migration_name = $migration->label() ? $migration->label() : $migration_id;
         if ($operation == 'import') {
-          $message = 'Currently upgrading @migration (@current of @max total tasks)';
+          $context['message'] = t('Currently upgrading @migration (@current of @max total tasks)',
+              ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
+                '@max' => $context['sandbox']['max']]) . "<br />\n" . $context['message'];
         }
         else {
-          $message = 'Currently rolling back @migration (@current of @max total tasks)';
+          $context['message'] = t('Currently rolling back @migration (@current of @max total tasks)',
+              ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
+                '@max' => $context['sandbox']['max']]) . "<br />\n" . $context['message'];
         }
-        $context['message'] = t($message,
-          ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
-           '@max' => $context['sandbox']['max']]) . "<br />\n" . $context['message'];
       }
     }
     else {
@@ -256,21 +254,21 @@ class MigrateUpgradeRunBatch {
     // If we had any successes lot that for the user.
     if ($successes > 0) {
       if ($results['operation'] == 'import') {
-        drupal_set_message(t('Completed @count successfully.', ['@count' => $translation->formatPlural($successes, '1 upgrade task', '@count upgrade tasks')]));
+        drupal_set_message($translation->formatPlural($successes, 'Completed 1 upgrade task successfully', 'Completed @count upgrade tasks successfully'));
       }
       else {
-        drupal_set_message(t('Completed @count successfully.', ['@count' => $translation->formatPlural($successes, '1 rollback task', '@count rollback tasks')]));
+        drupal_set_message($translation->formatPlural($successes, 'Completed 1 rollback task successfully', 'Completed @count rollback tasks successfully'));
       }
     }
 
     // If we had failures, log them and show the migration failed.
     if ($failures > 0) {
       if ($results['operation'] == 'import') {
-        drupal_set_message(t('@count failed', ['@count' => $translation->formatPlural($failures, '1 upgrade', '@count upgrades')]), 'error');
+        drupal_set_message($translation->formatPlural($failures, '1 upgrade failed', '@count upgrades failed'));
         drupal_set_message(t('Upgrade process not completed'), 'error');
       }
       else {
-        drupal_set_message(t('@count failed', ['@count' => $translation->formatPlural($failures, '1 rollback', '@count rollbacks')]), 'error');
+        drupal_set_message($translation->formatPlural($failures, '1 rollback failed', '@count rollbacks failed'));
         drupal_set_message(t('Rollback process not completed'), 'error');
       }
     }
