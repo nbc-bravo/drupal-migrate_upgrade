@@ -285,11 +285,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       'source_module' => 'locale',
       'destination_module' => 'locale',
     ],
-    'd6_menu_links' => [
-      'source_module' => 'menu',
-      'destination_module' => 'menu_link_content',
-    ],
-    'd7_menu_links' => [
+    'menu_links' => [
       'source_module' => 'menu',
       'destination_module' => 'menu_link_content',
     ],
