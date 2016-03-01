@@ -77,7 +77,7 @@ trait MigrationCreationTrait {
     // Set up the connection.
     $connection = $this->getConnection($database);
     if (!$drupal_version = $this->getLegacyDrupalVersion($connection)) {
-      throw new \Exception($this->t('Source database does not contain a recognizable Drupal version.'));
+      throw new \Exception('Source database does not contain a recognizable Drupal version.');
     }
     $database_state['key'] = 'upgrade';
     $database_state['database'] = $database;
