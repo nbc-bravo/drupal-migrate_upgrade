@@ -22,8 +22,49 @@ use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 trait MigrationCreationTrait {
 
   /**
-   * Set up the relevant migrations for import from the provided database
-   * connection.
+   * Get the database connection for the source Drupal database.
+   *
+   * @param \Drupal\Core\Database\Database $database
+   *   Database array representing the source Drupal database.
+   *
+   * @return \Drupal\Core\Database\Connection
+   */
+  protected function getConnection(array $database) {
+    // Set up the connection.
+    Database::addConnectionInfo('upgrade', 'default', $database);
+    $connection = Database::getConnection('default', 'upgrade');
+    return $connection;
+  }
+
+  /**
+   * Get the system data from the system table of the source Drupal database.
+   *
+   * @param \Drupal\Core\Database\Database $database
+   *   Database array representing the source Drupal database.
+   *
+   * @return array
+   */
+  protected function getSystemData(array $database) {
+    $connection = $this->getConnection($database);
+    $system_data = [];
+    try {
+      $results = $connection->select('system', 's', [
+        'fetch' => \PDO::FETCH_ASSOC
+      ])
+        ->fields('s')
+        ->execute();
+      foreach ($results as $result) {
+        $system_data[$result['type']][$result['name']] = $result;
+      }
+    }
+    catch (\Exception $e) {
+      // The table might not exist for example in tests.
+    }
+    return $system_data;
+  }
+
+  /**
+   * Set up the migration template for import from the provided database connection.
    *
    * @param \Drupal\Core\Database\Database $database
    *   Database array representing the source Drupal database.
@@ -32,10 +73,9 @@ trait MigrationCreationTrait {
    *
    * @return array
    */
-  protected function createMigrations(array $database, $source_base_path) {
+  protected function getMigrationTemplates(array $database, $source_base_path) {
     // Set up the connection.
-    Database::addConnectionInfo('upgrade', 'default', $database);
-    $connection = Database::getConnection('default', 'upgrade');
+    $connection = $this->getConnection($database);
     if (!$drupal_version = $this->getLegacyDrupalVersion($connection)) {
       throw new \Exception($this->t('Source database does not contain a recognizable Drupal version.'));
     }
@@ -59,14 +99,26 @@ trait MigrationCreationTrait {
         }
       }
     }
+    return $migration_templates;
+  }
+
+  /**
+   * Get the relevant migrations for import from the provided migration template connection.
+   *
+   * @param string $migration_templates
+   *   Migration template
+   *
+   * @return object
+   */
+  protected function getMigrations(array $migration_templates) {
 
     // Let the builder service create our migration configuration entities from
     // the templates, expanding them to multiple entities where necessary.
     /** @var \Drupal\migrate\MigrationBuilder $builder */
     $builder = \Drupal::service('migrate.migration_builder');
-    $migrations = $builder->createMigrations($migration_templates);
-    $migration_ids = [];
-    foreach ($migrations as $migration) {
+    $initial_migrations = $builder->createMigrations($migration_templates);
+    $migrations = [];
+    foreach ($initial_migrations as $migration) {
       try {
         if ($migration->getSourcePlugin() instanceof RequirementsInterface) {
           $migration->getSourcePlugin()->checkRequirements();
@@ -74,11 +126,7 @@ trait MigrationCreationTrait {
         if ($migration->getDestinationPlugin() instanceof RequirementsInterface) {
           $migration->getDestinationPlugin()->checkRequirements();
         }
-        // Don't try to resave migrations that already exist.
-        if (!Migration::load($migration->id())) {
-          $migration->save();
-        }
-        $migration_ids[] = $migration->id();
+        $migrations[] = $migration;
       }
       // Migrations which are not applicable given the source and destination
       // site configurations (e.g., what modules are enabled) will be silently
@@ -89,6 +137,25 @@ trait MigrationCreationTrait {
       }
     }
 
+    return $migrations;
+  }
+
+  /**
+   * Save the relevant migrations for import from the provided template
+   * connection.
+   *
+   * @param string $migration_templates
+   *   Migration template.
+   */
+  protected function createMigrations(array $migration_templates) {
+    $migrations = $this->getMigrations($migration_templates);
+    foreach ($migrations as $migration) {
+      // Don't try to resave migrations that already exist.
+      if (!Migration::load($migration->id())) {
+        $migration->save();
+      }
+      $migration_ids[] = $migration->id();
+    }
     // loadMultiple will sort the migrations in dependency order.
     return array_keys(Migration::loadMultiple($migration_ids));
   }
@@ -104,7 +171,6 @@ trait MigrationCreationTrait {
     // Don't assume because a table of that name exists, that it has the columns
     // we're querying. Catch exceptions and report that the source database is
     // not Drupal.
-
     // Drupal 5/6/7 can be detected by the schema_version in the system table.
     if ($connection->schema()->tableExists('system')) {
       try {

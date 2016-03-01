@@ -13,7 +13,6 @@ use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Url;
 use Drupal\migrate\Entity\Migration;
-use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate_upgrade\MigrationCreationTrait;
 
 /**
@@ -39,7 +38,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
   protected $moduleUpgradePaths = [
     'd6_action_settings' => [
       'source_module' => 'system',
-      'destination_module' => 'action'
+      'destination_module' => 'action',
     ],
     'd6_aggregator_feed' => [
       'source_module' => 'aggregator',
@@ -602,10 +601,13 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
     switch ($step) {
       case 'overview':
         return $this->buildOverviewForm($form, $form_state);
+
       case 'credentials':
         return $this->buildCredentialForm($form, $form_state);
+
       case 'confirm':
         return $this->buildConfirmForm($form, $form_state);
+
       default:
         drupal_set_message($this->t('Unrecognized form step @step',
           ['@step' => $step]), 'error');
@@ -653,8 +655,8 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
     else {
       $form['info_header'] = [
         '#markup' => '<p>' . $this->t('Upgrade a Drupal site by importing it into a clean and empty new install of Drupal 8. You will lose any existing configuration once you import your site into it. See the <a href=":url">upgrading handbook</a> for more detailed information.', [
-            ':url' => 'https://www.drupal.org/upgrade/migrate'
-          ]),
+          ':url' => 'https://www.drupal.org/upgrade/migrate',
+        ]),
       ];
 
       $info[] = $this->t('<strong>Back up the database for this site</strong>. Upgrade will change the database for this site.');
@@ -662,10 +664,10 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       $info[] = $this->t('If your previous site has private files to be migrated, a copy of your files directory must be accessible on the host this site is on.');
       $info[] = $this->t('In general, enable all modules on this site that are enabled on the previous site. For example, if you have used the book module on the previous site then you must enable the book module on this site for that data to be available on this site.');
       $info[] = $this->t('Put this site into <a href=":url">maintenance mode</a>.', [
-                  ':url' => Url::fromRoute('system.site_maintenance_mode')
-                  ->toString(TRUE)
-                  ->getGeneratedUrl(),
-                ]);
+        ':url' => Url::fromRoute('system.site_maintenance_mode')
+          ->toString(TRUE)
+          ->getGeneratedUrl(),
+      ]);
 
       $form['info'] = [
         '#theme' => 'item_list',
@@ -704,9 +706,11 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       case static::MIGRATE_UPGRADE_INCREMENTAL:
         $form_state->setValue('step', 'confirm');
         break;
+
       case static::MIGRATE_UPGRADE_ROLLBACK:
         $form_state->setValue('step', 'confirm');
         break;
+
       default:
         $form_state->setValue('step', 'credentials');
         break;
@@ -716,7 +720,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
 
   /**
    * Build the form gathering database credential and file location information.
-   * This is largely borrowed from SiteSettingsForm.
+   *   This is largely borrowed from SiteSettingsForm.
    *
    * @param array $form
    *   An associative array containing the structure of the form.
@@ -766,11 +770,11 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       $form['database']['settings'][$key]['#states'] = [
         'visible' => [
           ':input[name=driver]' => ['value' => $key],
-        ]
+        ],
       ];
 
       // Move the host fields out of advanced settings.
-      if (isset ($form['database']['settings'][$key]['advanced_options']['host'])) {
+      if (isset($form['database']['settings'][$key]['advanced_options']['host'])) {
         $form['database']['settings'][$key]['host'] = $form['database']['settings'][$key]['advanced_options']['host'];
         $form['database']['settings'][$key]['host']['#title'] = 'Database host';
         $form['database']['settings'][$key]['host']['#weight'] = -1;
@@ -791,13 +795,13 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
     ];
 
     /*
-      // @todo: Not yet implemented, depends on https://www.drupal.org/node/2547125.
-      $form['files']['private_file_directory'] = [
-        '#type' => 'textfield',
-        '#title' => $this->t('Private file path'),
-        '#description' => $this->t('To import private files from your current Drupal site, enter a local file directory containing your files (e.g. /var/private_files).'),
-      ];
-    */
+    // @todo: Not yet implemented, depends on https://www.drupal.org/node/2547125.
+    $form['files']['private_file_directory'] = [
+    '#type' => 'textfield',
+    '#title' => $this->t('Private file path'),
+    '#description' => $this->t('To import private files from your current Drupal site, enter a local file directory containing your files (e.g. /var/private_files).'),
+    ];
+     */
 
     $form['actions'] = ['#type' => 'actions'];
     $form['actions']['save'] = [
@@ -873,11 +877,30 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
     }
 
     try {
-      // Create all the relevant migrations and get their IDs so we can run them.
-      $migration_ids = $this->createMigrations($database, $form_state->getValue('source_base_path'));
+
+      // Get the template for migration.
+      $migration_template = $this->getMigrationTemplates($database, $form_state->getValue('source_base_path'));
+
+      // Get a copy of all the relevant migrations so we run them in next step.
+      $migrations = $this->getMigrations($migration_template);
+
+      // Get the system data from source database.
+      $system_data = $this->getSystemData($database);
+
+      // Convert the migration object into array
+      // so that it can be stored in form storage.
+      foreach ($migrations as $migration) {
+        $migration_array[] = $migration->toArray();
+      }
+
+      // Store the retrieved migration templates in form storage.
+      $form_state->set('migration_template', $migration_template);
 
       // Store the retrieved migration ids in form storage.
-      $form_state->set('migration_ids', $migration_ids);
+      $form_state->set('migration', $migration_array);
+
+      // Store the retrived system data in from storage.
+      $form_state->set('system_data', $system_data);
     }
     catch (\Exception $e) {
       $error_message = [
@@ -938,17 +961,16 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
     else {
       $table_data = [];
       $system_data = [];
-      foreach ($form_state->get('migration_ids') as $migration_id) {
-        /** @var MigrationInterface $migration */
-        $migration = Migration::load($migration_id);
+      foreach ($form_state->get('migration') as $migration) {
+        $migration_id = $migration['id'];
         // Fetch the system data at the first opportunity.
-        if (empty($system_data) && is_a($migration->getSourcePlugin(), '\Drupal\migrate_drupal\Plugin\migrate\source\DrupalSqlBase')) {
-          $system_data = $migration->getSourcePlugin()->getSystemData();
+        if (empty($system_data)) {
+          $system_data = $form_state->get('system_data');
         }
-        $template_id = $migration->get('template');
+        $template_id = $migration['template'];
         $source_module = $this->moduleUpgradePaths[$template_id]['source_module'];
         $destination_module = $this->moduleUpgradePaths[$template_id]['destination_module'];
-        $table_data[$source_module][$destination_module][$migration_id] = $migration->label();
+        $table_data[$source_module][$destination_module][$migration_id] = $migration['label'];
       }
       ksort($table_data);
       foreach ($table_data as $source_module => $destination_module_info) {
@@ -1002,7 +1024,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
         foreach ($destination_module_info as $destination_module => $migration_ids) {
           $destination_details[$destination_module] = [
             '#type' => 'item',
-            '#plain_text' => t($destination_module),
+            '#plain_text' => $this->t($destination_module),
           ];
         }
         $form['available_module_list']['module_list'][$source_module] = [
@@ -1012,7 +1034,7 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       }
       $form['counts'] = [
         '#type' => 'item',
-        '#title' => '<ul><li>' . t('@count available upgrade paths', ['@count' => $available_count]) . '</li><li>' . t('@count missing upgrade paths', ['@count' => $missing_count]) . '</li></ul>',
+        '#title' => '<ul><li>' . $this->t('@count available upgrade paths', ['@count' => $available_count]) . '</li><li>' . $this->t('@count missing upgrade paths', ['@count' => $missing_count]) . '</li></ul>',
         '#weight' => -15,
       ];
     }
@@ -1082,12 +1104,12 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
         'operations' => [
           [
             ['Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'],
-            [array_keys($migrations), 'rollback']
+            [array_keys($migrations), 'rollback'],
           ],
         ],
         'finished' => [
           'Drupal\migrate_upgrade\MigrateUpgradeRunBatch',
-          'finished'
+          'finished',
         ],
       ];
       batch_set($batch);
@@ -1095,18 +1117,20 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       \Drupal::state()->delete('migrate_upgrade.performed');
     }
     else {
+      $migration_template = $storage['migration_template'];
+      $migration_ids = $this->createMigrations($migration_template);
       $batch = [
         'title' => $this->t('Running upgrade'),
         'progress_message' => '',
         'operations' => [
           [
             ['Drupal\migrate_upgrade\MigrateUpgradeRunBatch', 'run'],
-            [$form_state->get('migration_ids'), 'import']
+            [$migration_ids, 'import'],
           ],
         ],
         'finished' => [
           'Drupal\migrate_upgrade\MigrateUpgradeRunBatch',
-          'finished'
+          'finished',
         ],
       ];
       batch_set($batch);
