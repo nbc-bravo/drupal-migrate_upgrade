@@ -738,7 +738,13 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
 
     $drivers = drupal_get_database_types();
     $drivers_keys = array_keys($drivers);
+    // @todo https://www.drupal.org/node/2678510 Because this is a multi-step
+    //   form, the form is not rebuilt during submission. Ideally we would get
+    //   the chosen driver from form input, if available, in order to use
+    //   #limit_validation_errors in the same way
+    //   \Drupal\Core\Installer\Form\SiteSettingsForm does.
     $default_driver = current($drivers_keys);
+
     $default_options = [];
 
     $form['database'] = [
@@ -763,6 +769,12 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       $form['database']['driver']['#options'][$key] = $driver->name();
 
       $form['database']['settings'][$key] = $driver->getFormOptions($default_options);
+      // @todo https://www.drupal.org/node/2678510 Using
+      //   #limit_validation_errors in the submit does not work so it is not
+      //   possible to require the database and username for mysql and pgsql.
+      //   This is because this is a multi-step form.
+      $form['database']['settings'][$key]['database']['#required'] = FALSE;
+      $form['database']['settings'][$key]['username']['#required'] = FALSE;
       $form['database']['settings'][$key]['#prefix'] = '<h2 class="js-hide">' . $this->t('@driver_name settings', ['@driver_name' => $driver->name()]) . '</h2>';
       $form['database']['settings'][$key]['#type'] = 'container';
       $form['database']['settings'][$key]['#tree'] = TRUE;
@@ -808,10 +820,6 @@ class MigrateUpgradeForm extends FormBase implements ConfirmFormInterface {
       '#type' => 'submit',
       '#value' => $this->t('Review upgrade'),
       '#button_type' => 'primary',
-      '#limit_validation_errors' => [
-        ['driver'],
-        [$default_driver],
-      ],
       '#validate' => ['::validateCredentialForm'],
       '#submit' => ['::submitCredentialForm'],
     ];
