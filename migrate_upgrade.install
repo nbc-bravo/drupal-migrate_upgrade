@@ -1,11 +1,11 @@
 <?php
 
-use Drupal\Core\Url;
-
 /**
  * @file
  * Install, update and uninstall functions for the migrate_upgrade module.
  */
+
+use Drupal\Core\Url;
 
 /**
  * Implements hook_install().
