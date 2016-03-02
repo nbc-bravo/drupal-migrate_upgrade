@@ -15,19 +15,18 @@ use Drupal\migrate\Plugin\RequirementsInterface;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 
 /**
- * Trait providing functionality to create the appropriate migrations for
- * a given source Drupal database. Note the class using the trait must
- * implement TranslationInterface (i.e., define t()).
+ * Creates the appropriate migrations for a given source Drupal database.
  */
 trait MigrationCreationTrait {
 
   /**
-   * Get the database connection for the source Drupal database.
+   * Gets the database connection for the source Drupal database.
    *
-   * @param \Drupal\Core\Database\Database $database
+   * @param array $database
    *   Database array representing the source Drupal database.
    *
    * @return \Drupal\Core\Database\Connection
+   *   The database connection for the source Drupal database.
    */
   protected function getConnection(array $database) {
     // Set up the connection.
@@ -37,19 +36,20 @@ trait MigrationCreationTrait {
   }
 
   /**
-   * Get the system data from the system table of the source Drupal database.
+   * Gets the system data from the system table of the source Drupal database.
    *
-   * @param \Drupal\Core\Database\Database $database
+   * @param array $database
    *   Database array representing the source Drupal database.
    *
    * @return array
+   *   The system data from the system table of the source Drupal database.
    */
   protected function getSystemData(array $database) {
     $connection = $this->getConnection($database);
     $system_data = [];
     try {
       $results = $connection->select('system', 's', [
-        'fetch' => \PDO::FETCH_ASSOC
+        'fetch' => \PDO::FETCH_ASSOC,
       ])
         ->fields('s')
         ->execute();
@@ -64,14 +64,17 @@ trait MigrationCreationTrait {
   }
 
   /**
-   * Set up the migration template for import from the provided database connection.
+   * Sets up the relevant migrations for import from a database connection.
    *
-   * @param \Drupal\Core\Database\Database $database
+   * @param array|\Drupal\Core\Database\Database $database
    *   Database array representing the source Drupal database.
    * @param string $source_base_path
    *   Address of the source Drupal site (e.g., http://example.com/).
    *
-   * @return array
+   * @return int[]
+   *   An array of Migration entity IDs.
+   *
+   * @throws \Exception
    */
   protected function getMigrationTemplates(array $database, $source_base_path) {
     // Set up the connection.
@@ -103,15 +106,18 @@ trait MigrationCreationTrait {
   }
 
   /**
-   * Get the relevant migrations for import from the provided migration template connection.
+   * Gets the migrations for import.
    *
-   * @param string $migration_templates
-   *   Migration template
+   * Uses the migration template connection to ensure that only the relevant
+   * migrations are returned.
    *
-   * @return object
+   * @param array $migration_templates
+   *   Migration template.
+   *
+   * @return \Drupal\migrate\Entity\MigrationInterface[]
+   *   The migrations for import.
    */
   protected function getMigrations(array $migration_templates) {
-
     // Let the builder service create our migration configuration entities from
     // the templates, expanding them to multiple entities where necessary.
     /** @var \Drupal\migrate\MigrationBuilder $builder */
@@ -120,11 +126,13 @@ trait MigrationCreationTrait {
     $migrations = [];
     foreach ($initial_migrations as $migration) {
       try {
-        if ($migration->getSourcePlugin() instanceof RequirementsInterface) {
-          $migration->getSourcePlugin()->checkRequirements();
+        $source_plugin = $migration->getSourcePlugin();
+        if ($source_plugin instanceof RequirementsInterface) {
+          $source_plugin->checkRequirements();
         }
-        if ($migration->getDestinationPlugin() instanceof RequirementsInterface) {
-          $migration->getDestinationPlugin()->checkRequirements();
+        $destination_plugin = $migration->getDestinationPlugin();
+        if ($destination_plugin instanceof RequirementsInterface) {
+          $destination_plugin->checkRequirements();
         }
         $migrations[] = $migration;
       }
@@ -141,13 +149,16 @@ trait MigrationCreationTrait {
   }
 
   /**
-   * Save the relevant migrations for import from the provided template
-   * connection.
+   * Saves the migrations for import from the provided template connection.
    *
-   * @param string $migration_templates
+   * @param array $migration_templates
    *   Migration template.
+   *
+   * @return array
+   *   The migration IDs sorted in dependency order.
    */
   protected function createMigrations(array $migration_templates) {
+    $migration_ids = [];
     $migrations = $this->getMigrations($migration_templates);
     foreach ($migrations as $migration) {
       // Don't try to resave migrations that already exist.
@@ -161,11 +172,14 @@ trait MigrationCreationTrait {
   }
 
   /**
-   * Determine what version of Drupal the source database contains.
+   * Determines what version of Drupal the source database contains.
    *
    * @param \Drupal\Core\Database\Connection $connection
+   *   The database connection object.
    *
    * @return int|FALSE
+   *   An integer representing the major branch of Drupal core (e.g. '6' for
+   *   Drupal 6.x), or FALSE if no valid version is matched.
    */
   protected function getLegacyDrupalVersion(Connection $connection) {
     // Don't assume because a table of that name exists, that it has the columns
@@ -174,8 +188,9 @@ trait MigrationCreationTrait {
     // Drupal 5/6/7 can be detected by the schema_version in the system table.
     if ($connection->schema()->tableExists('system')) {
       try {
-        $version_string = $connection->query('SELECT schema_version FROM {system} WHERE name = :module', [':module' => 'system'])
-                                     ->fetchField();
+        $version_string = $connection
+          ->query('SELECT schema_version FROM {system} WHERE name = :module', [':module' => 'system'])
+          ->fetchField();
         if ($version_string && $version_string[0] == '1') {
           if ((int) $version_string >= 1000) {
             $version_string = '5';
@@ -192,7 +207,9 @@ trait MigrationCreationTrait {
     // For Drupal 8 (and we're predicting beyond) the schema version is in the
     // key_value store.
     elseif ($connection->schema()->tableExists('key_value')) {
-      $result = $connection->query("SELECT value FROM {key_value} WHERE collection = :system_schema  and name = :module", [':system_schema' => 'system.schema', ':module' => 'system'])->fetchField();
+      $result = $connection
+        ->query("SELECT value FROM {key_value} WHERE collection = :system_schema  and name = :module", [':system_schema' => 'system.schema', ':module' => 'system'])
+        ->fetchField();
       $version_string = unserialize($result);
     }
     else {

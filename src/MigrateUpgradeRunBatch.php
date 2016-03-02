@@ -7,6 +7,8 @@
 
 namespace Drupal\migrate_upgrade;
 
+use Drupal\Core\Link;
+use Drupal\Core\Url;
 use Drupal\migrate\Entity\Migration;
 use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate\Event\MigrateEvents;
@@ -16,8 +18,10 @@ use Drupal\migrate\Event\MigrateMapSaveEvent;
 use Drupal\migrate\Event\MigratePostRowSaveEvent;
 use Drupal\migrate\Event\MigrateRowDeleteEvent;
 use Drupal\migrate\MigrateExecutable;
-use Drupal\Core\Url;
 
+/**
+ * Runs a single migration batch.
+ */
 class MigrateUpgradeRunBatch {
 
   /**
@@ -54,30 +58,26 @@ class MigrateUpgradeRunBatch {
   protected static $messages;
 
   /**
-   * Run a single migration batch.
+   * Runs a single migration batch.
    *
-   * @param array $initial_ids
+   * @param int[] $initial_ids
    *   The full set of migration IDs to import.
    * @param string $operation
-   *   'import' or 'rollback'.
-   * @param $context
+   *   The operation to perform, 'import' or 'rollback'.
+   * @param array $context
    *   The batch context.
    */
   public static function run($initial_ids, $operation, &$context) {
     if (!static::$listenersAdded) {
+      $event_dispatcher = \Drupal::service('event_dispatcher');
       if ($operation == 'import') {
-        \Drupal::service('event_dispatcher')->addListener(MigrateEvents::POST_ROW_SAVE,
-          [get_class(), 'onPostRowSave']);
-        \Drupal::service('event_dispatcher')->addListener(MigrateEvents::MAP_SAVE,
-          [get_class(), 'onMapSave']);
-        \Drupal::service('event_dispatcher')->addListener(MigrateEvents::IDMAP_MESSAGE,
-          [get_class(), 'onIdMapMessage']);
+        $event_dispatcher->addListener(MigrateEvents::POST_ROW_SAVE, [static::class, 'onPostRowSave']);
+        $event_dispatcher->addListener(MigrateEvents::MAP_SAVE, [static::class, 'onMapSave']);
+        $event_dispatcher->addListener(MigrateEvents::IDMAP_MESSAGE, [static::class, 'onIdMapMessage']);
       }
       else {
-        \Drupal::service('event_dispatcher')->addListener(MigrateEvents::POST_ROW_DELETE,
-          [get_class(), 'onPostRowDelete']);
-        \Drupal::service('event_dispatcher')->addListener(MigrateEvents::MAP_DELETE,
-          [get_class(), 'onMapDelete']);
+        $event_dispatcher->addListener(MigrateEvents::POST_ROW_DELETE, [static::class, 'onPostRowDelete']);
+        $event_dispatcher->addListener(MigrateEvents::MAP_DELETE, [static::class, 'onMapDelete']);
       }
       static::$maxExecTime = ini_get('max_execution_time');
       if (static::$maxExecTime <= 0) {
@@ -114,7 +114,7 @@ class MigrateUpgradeRunBatch {
 
       $migration_name = $migration->label() ? $migration->label() : $migration_id;
 
-      try  {
+      try {
         if ($operation == 'import') {
           $migration_status = $executable->import();
         }
@@ -132,12 +132,12 @@ class MigrateUpgradeRunBatch {
           // Store the number processed in the sandbox.
           $context['sandbox']['num_processed'] += static::$numProcessed;
           if ($operation == 'import') {
-            $message = \Drupal::translation()->formatPlural(
+            $message = static::getTranslation()->formatPlural(
               $context['sandbox']['num_processed'], 'Upgraded @migration (processed 1 item total)', 'Upgraded @migration (processed @num_processed items total)',
               ['@migration' => $migration_name, '@num_processed' => $context['sandbox']['num_processed']]);
           }
           else {
-            $message = \Drupal::translation()->formatPlural(
+            $message = static::getTranslation()->formatPlural(
               $context['sandbox']['num_processed'], 'Rolled back @migration (processed 1 item total)', 'Rolled back @migration (processed @num_processed items total)',
               ['@migration' => $migration_name, '@num_processed' => $context['sandbox']['num_processed']]);
             $migration->delete();
@@ -149,7 +149,7 @@ class MigrateUpgradeRunBatch {
           break;
 
         case MigrationInterface::RESULT_INCOMPLETE:
-          $context['sandbox']['messages'][] = \Drupal::translation()->formatPlural(
+          $context['sandbox']['messages'][] = static::getTranslation()->formatPlural(
             static::$numProcessed, 'Continuing with @migration (processed 1 item)', 'Continuing with @migration (processed @num_processed items)',
             ['@migration' => $migration_name, '@num_processed' => static::$numProcessed]);
           $context['sandbox']['num_processed'] += static::$numProcessed;
@@ -191,7 +191,7 @@ class MigrateUpgradeRunBatch {
       $message_count = count($context['sandbox']['messages']);
       $context['message'] = '';
       for ($index = max(0, $message_count - self::MESSAGE_LENGTH); $index < $message_count; $index++) {
-        $context['message'] = $context['sandbox']['messages'][$index]. "<br />\n" . $context['message'];
+        $context['message'] = $context['sandbox']['messages'][$index] . "<br />\n" . $context['message'];
       }
       if ($message_count > self::MESSAGE_LENGTH) {
         // Indicate there are earlier messages not displayed.
@@ -204,14 +204,18 @@ class MigrateUpgradeRunBatch {
         $migration = Migration::load($migration_id);
         $migration_name = $migration->label() ? $migration->label() : $migration_id;
         if ($operation == 'import') {
-          $context['message'] = t('Currently upgrading @migration (@current of @max total tasks)',
-              ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
-                '@max' => $context['sandbox']['max']]) . "<br />\n" . $context['message'];
+          $context['message'] = t('Currently upgrading @migration (@current of @max total tasks)', [
+            '@migration' => $migration_name,
+            '@current' => $context['sandbox']['current'],
+            '@max' => $context['sandbox']['max'],
+          ]) . "<br />\n" . $context['message'];
         }
         else {
-          $context['message'] = t('Currently rolling back @migration (@current of @max total tasks)',
-              ['@migration' => $migration_name, '@current' => $context['sandbox']['current'],
-                '@max' => $context['sandbox']['max']]) . "<br />\n" . $context['message'];
+          $context['message'] = t('Currently rolling back @migration (@current of @max total tasks)', [
+            '@migration' => $migration_name,
+            '@current' => $context['sandbox']['current'],
+            '@max' => $context['sandbox']['max'],
+          ]) . "<br />\n" . $context['message'];
         }
       }
     }
@@ -224,7 +228,7 @@ class MigrateUpgradeRunBatch {
   }
 
   /**
-   * A helper method to grab the logger using the migrate_upgrade channel.
+   * Returns the logger using the migrate_upgrade channel.
    *
    * @return \Psr\Log\LoggerInterface
    *   The logger instance.
@@ -234,48 +238,57 @@ class MigrateUpgradeRunBatch {
   }
 
   /**
-   * Implementation of the Batch API finished method.
+   * Wraps the translation manager.
+   *
+   * @return \Drupal\Core\StringTranslation\TranslationManager
+   *   The string translation manager.
+   */
+  protected static function getTranslation() {
+    return \Drupal::translation();
+  }
+
+  /**
+   * Implements the Batch API finished method.
    */
   public static function finished($success, $results, $operations, $elapsed) {
     static::displayResults($results);
   }
 
   /**
-   * Display counts of success/failures on the migration upgrade complete page.
+   * Displays counts of success/failures on the migration upgrade complete page.
    *
-   * @param $results
+   * @param array $results
    *   An array of result data built during the batch.
    */
   protected static function displayResults($results) {
     $successes = $results['successes'];
     $failures = $results['failures'];
-    $translation = \Drupal::translation();
 
     // If we had any successes lot that for the user.
     if ($successes > 0) {
       if ($results['operation'] == 'import') {
-        drupal_set_message($translation->formatPlural($successes, 'Completed 1 upgrade task successfully', 'Completed @count upgrade tasks successfully'));
+        drupal_set_message(static::getTranslation()->formatPlural($successes, 'Completed 1 upgrade task successfully', 'Completed @count upgrade tasks successfully'));
       }
       else {
-        drupal_set_message($translation->formatPlural($successes, 'Completed 1 rollback task successfully', 'Completed @count rollback tasks successfully'));
+        drupal_set_message(static::getTranslation()->formatPlural($successes, 'Completed 1 rollback task successfully', 'Completed @count rollback tasks successfully'));
       }
     }
 
     // If we had failures, log them and show the migration failed.
     if ($failures > 0) {
       if ($results['operation'] == 'import') {
-        drupal_set_message($translation->formatPlural($failures, '1 upgrade failed', '@count upgrades failed'));
+        drupal_set_message(static::getTranslation()->formatPlural($failures, '1 upgrade failed', '@count upgrades failed'));
         drupal_set_message(t('Upgrade process not completed'), 'error');
       }
       else {
-        drupal_set_message($translation->formatPlural($failures, '1 rollback failed', '@count rollbacks failed'));
+        drupal_set_message(static::getTranslation()->formatPlural($failures, '1 rollback failed', '@count rollbacks failed'));
         drupal_set_message(t('Rollback process not completed'), 'error');
       }
     }
     else {
       if ($results['operation'] == 'import') {
-        // Everything went off without a hitch. We may not have had successes but
-        // we didn't have failures so this is fine.
+        // Everything went off without a hitch. We may not have had successes
+        // but we didn't have failures so this is fine.
         drupal_set_message(t('Congratulations, you upgraded Drupal!'));
       }
       else {
@@ -285,12 +298,12 @@ class MigrateUpgradeRunBatch {
 
     if (\Drupal::moduleHandler()->moduleExists('dblog')) {
       $url = Url::fromRoute('migrate_upgrade.log');
-      drupal_set_message(\Drupal::l(t('Review the detailed upgrade log'), $url), $failures ? 'error' : 'status');
+      drupal_set_message(Link::fromTextAndUrl(t('Review the detailed upgrade log'), $url), $failures ? 'error' : 'status');
     }
   }
 
   /**
-   * React to item import.
+   * Reacts to item import.
    *
    * @param \Drupal\migrate\Event\MigratePostRowSaveEvent $event
    *   The post-save event.
@@ -303,7 +316,7 @@ class MigrateUpgradeRunBatch {
   }
 
   /**
-   * React to item deletion.
+   * Reacts to item deletion.
    *
    * @param \Drupal\migrate\Event\MigrateRowDeleteEvent $event
    *   The post-save event.
@@ -316,7 +329,7 @@ class MigrateUpgradeRunBatch {
   }
 
   /**
-   * Count up any map save events.
+   * Counts up any map save events.
    *
    * @param \Drupal\migrate\Event\MigrateMapSaveEvent $event
    *   The map event.
@@ -326,7 +339,7 @@ class MigrateUpgradeRunBatch {
   }
 
   /**
-   * Count up any map delete events.
+   * Counts up any map delete events.
    *
    * @param \Drupal\migrate\Event\MigrateMapDeleteEvent $event
    *   The map event.
@@ -336,22 +349,20 @@ class MigrateUpgradeRunBatch {
   }
 
   /**
-   * Display any messages being logged to the ID map.
+   * Displays any messages being logged to the ID map.
    *
    * @param \Drupal\migrate\Event\MigrateIdMapMessageEvent $event
    *   The message event.
    */
   public static function onIdMapMessage(MigrateIdMapMessageEvent $event) {
-    if ($event->getLevel() == MigrationInterface::MESSAGE_NOTICE ||
-        $event->getLevel() == MigrationInterface::MESSAGE_INFORMATIONAL) {
+    if ($event->getLevel() == MigrationInterface::MESSAGE_NOTICE || $event->getLevel() == MigrationInterface::MESSAGE_INFORMATIONAL) {
       $type = 'status';
     }
     else {
       $type = 'error';
     }
     $source_id_string = implode(',', $event->getSourceIdValues());
-    $message = t('Source ID @source_id: @message',
-      ['@source_id' => $source_id_string, '@message' => $event->getMessage()]);
+    $message = t('Source ID @source_id: @message', ['@source_id' => $source_id_string, '@message' => $event->getMessage()]);
     static::$messages->display($message, $type);
   }
 

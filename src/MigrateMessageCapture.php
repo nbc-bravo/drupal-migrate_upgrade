@@ -10,8 +10,7 @@ namespace Drupal\migrate_upgrade;
 use Drupal\migrate\MigrateMessageInterface;
 
 /**
- * Defines a migrate message class for capturing messages rather than
- * displaying them directly.
+ * Allows capturing messages rather than displaying them directly.
  */
 class MigrateMessageCapture implements MigrateMessageInterface {
 
@@ -30,16 +29,17 @@ class MigrateMessageCapture implements MigrateMessageInterface {
   }
 
   /**
-   * Clear out any captured messages.
+   * Clears out any captured messages.
    */
   public function clear() {
     $this->messages = [];
   }
 
   /**
-   * Return any captured messages.
+   * Returns any captured messages.
    *
    * @return array
+   *   The captured messages.
    */
   public function getMessages() {
     return $this->messages;
