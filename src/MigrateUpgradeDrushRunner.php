@@ -44,7 +44,8 @@ class MigrateUpgradeDrushRunner {
     $db_prefix = drush_get_option('legacy-db-prefix');
     $db_spec['prefix'] = $db_prefix;
 
-    $this->migrationList = $this->createMigrations($db_spec, drush_get_option('legacy-root'));
+    $migration_templates = $this->getMigrationTemplates($db_spec, drush_get_option('legacy-root'));
+    $this->migrationList = $this->createMigrations($migration_templates);
   }
 
   /**
