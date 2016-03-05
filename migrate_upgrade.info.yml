@@ -6,6 +6,7 @@ version: VERSION
 core: 8.x
 configure: migrate_upgrade.upgrade
 dependencies:
+  - system (<8.1)
   - migrate
   - migrate_drupal
   - dblog
