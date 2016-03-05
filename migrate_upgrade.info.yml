@@ -1,7 +1,7 @@
 name: Drupal Upgrade
 type: module
 description: 'Drush support for direct upgrades from older Drupal versions.'
-package: Core (Experimental)
+package: Migration
 version: VERSION
 core: 8.x
 dependencies:
