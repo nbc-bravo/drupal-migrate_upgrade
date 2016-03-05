@@ -12,6 +12,7 @@ use Drupal\migrate\Event\MigrateEvents;
 use Drupal\migrate\Event\MigrateIdMapMessageEvent;
 use Drupal\migrate\MigrateExecutable;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
+use Drupal\migrate_drupal\MigrationCreationTrait;
 
 class MigrateUpgradeDrushRunner {
 
