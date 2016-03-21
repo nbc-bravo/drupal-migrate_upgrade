@@ -6,8 +6,9 @@
  */
 
 namespace Drupal\migrate_upgrade;
-use Drupal\migrate\Entity\Migration;
-use Drupal\migrate\Entity\MigrationInterface;
+
+use Drupal\migrate\Plugin\Migration;
+use Drupal\migrate\Plugin\MigrationInterface;
 use Drupal\migrate\Event\MigrateEvents;
 use Drupal\migrate\Event\MigrateIdMapMessageEvent;
 use Drupal\migrate\MigrateExecutable;
@@ -45,8 +46,21 @@ class MigrateUpgradeDrushRunner {
     $db_prefix = drush_get_option('legacy-db-prefix');
     $db_spec['prefix'] = $db_prefix;
 
-    $migration_templates = $this->getMigrationTemplates($db_spec, drush_get_option('legacy-root'));
-    $this->migrationList = $this->createMigrations($migration_templates);
+    $connection = $this->getConnection($db_spec);
+    $version = $this->getLegacyDrupalVersion($connection);
+    $this->createDatabaseStateSettings($db_spec, $version);
+    $migrations = $this->getMigrations('migrate_drupal_' . $version, $version);
+    $this->migrationList = [];
+    foreach ($migrations as $migration) {
+      $destination = $migration->get('destination');
+      if ($destination['plugin'] === 'entity:file') {
+        // Make sure we have a single trailing slash.
+        $source_base_path = rtrim(drush_get_option('legacy-root'), '/') . '/';
+        $destination['source_base_path'] = $source_base_path;
+        $migration->set('destination', $destination);
+      }
+      $this->migrationList[$migration->id()] = $migration;
+    }
   }
 
   /**
@@ -58,9 +72,7 @@ class MigrateUpgradeDrushRunner {
       \Drupal::service('event_dispatcher')->addListener(MigrateEvents::IDMAP_MESSAGE,
         [get_class(), 'onIdMapMessage']);
     }
-    foreach ($this->migrationList as $migration_id) {
-      /** @var MigrationInterface $migration */
-      $migration = Migration::load($migration_id);
+    foreach ($this->migrationList as $migration_id => $migration) {
       drush_print(dt('Upgrading @migration', ['@migration' => $migration_id]));
       $executable = new MigrateExecutable($migration, static::$messages);
       // drush_op() provides --simulate support.

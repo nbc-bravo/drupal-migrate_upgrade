@@ -17,7 +17,6 @@ function migrate_upgrade_drush_command() {
       'legacy-db-url' => 'A Drupal 6 style database URL. Required.',
       'legacy-db-prefix' => 'Prefix of the legacy Drupal installation.',
       'legacy-root' => 'Site address or root of the legacy Drupal installation',
-      'configure-only' => 'Set up the appropriate upgrade processes but do not perform them',
     ],
     'examples' => [
       'migrate-upgrade --legacy-db-url=\'mysql://root:pass@127.0.0.1/d6\'' => 'Upgrade a Drupal 6 database to Drupal 8',
@@ -40,16 +39,12 @@ function migrate_upgrade_drush_command() {
  * optionally perform the imports.
  */
 function drush_migrate_upgrade() {
-  $configure_only = drush_get_option('configure-only');
-
   $runner = new MigrateUpgradeDrushRunner();
 
   try {
     $runner->configure();
-    if (!$configure_only) {
-      $runner->import();
-      \Drupal::state()->set('migrate_upgrade.performed', REQUEST_TIME);
-    }
+    $runner->import();
+    \Drupal::state()->set('migrate_drupal_ui.performed', REQUEST_TIME);
   }
   catch (\Exception $e) {
     drush_log($e->getMessage(), 'error');
@@ -61,7 +56,7 @@ function drush_migrate_upgrade() {
  * themselves.
  */
 function drush_migrate_upgrade_rollback() {
-  if ($date_performed = \Drupal::state()->get('migrate_upgrade.performed')) {
+  if ($date_performed = \Drupal::state()->get('migrate_drupal_ui.performed')) {
     if (drush_confirm(dt('All migrations tagged as \'Drupal\' will be rolled back. Are you sure?'))) {
       $runner = new MigrateUpgradeDrushRunner();
 
@@ -69,7 +64,7 @@ function drush_migrate_upgrade_rollback() {
         drush_log(dt('Rolling back the upgrades performed @date',
           ['@date' => \Drupal::service('date.formatter')->format($date_performed)]));
         $runner->rollback();
-        \Drupal::state()->delete('migrate_upgrade.performed');
+        \Drupal::state()->delete('migrate_drupal_ui.performed');
         drush_log(dt('Rolled back upgrades'));
       }
       catch (\Exception $e) {
