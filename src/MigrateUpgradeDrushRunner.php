@@ -85,37 +85,21 @@ class MigrateUpgradeDrushRunner {
    */
   public function rollback() {
     static::$messages = new DrushLogMigrateMessage();
-    $query = \Drupal::entityQuery('migration');
-    $names = $query->execute();
+    $database_state_key = \Drupal::state()->get('migrate.fallback_state_key');
+    $database_state = \Drupal::state()->get($database_state_key);
+    $db_spec = $database_state['database'];
+    $connection = $this->getConnection($db_spec);
+    $version = $this->getLegacyDrupalVersion($connection);
+    $migrations = $this->getMigrations('migrate_drupal_' . $version, $version);
 
-    // Order the migrations according to their dependencies.
-    /** @var MigrationInterface[] $migrations */
-    $migrations = \Drupal::entityManager()
-       ->getStorage('migration')
-       ->loadMultiple($names);
-    // Assume we want all those tagged 'Drupal %'.
-    foreach ($migrations as $migration_id => $migration) {
-      $keep = FALSE;
-      $tags = $migration->get('migration_tags');
-      foreach ($tags as $tag) {
-        if (strpos($tag, 'Drupal ') === 0) {
-          $keep = TRUE;
-          break;
-        }
-      }
-      if (!$keep) {
-        unset($migrations[$migration_id]);
-      }
-    }
     // Roll back in reverse order.
     $this->migrationList = array_reverse($migrations);
 
-    foreach ($this->migrationList as $migration_id => $migration) {
-      drush_print(dt('Rolling back @migration', ['@migration' => $migration_id]));
+    foreach ($migrations as $migration) {
+      drush_print(dt('Rolling back @migration', ['@migration' => $migration->id()]));
       $executable = new MigrateExecutable($migration, static::$messages);
       // drush_op() provides --simulate support.
       drush_op([$executable, 'rollback']);
-      $migration->delete();
     }
   }
 
