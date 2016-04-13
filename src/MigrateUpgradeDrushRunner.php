@@ -7,13 +7,14 @@
 
 namespace Drupal\migrate_upgrade;
 
-use Drupal\migrate\Plugin\Migration;
 use Drupal\migrate\Plugin\MigrationInterface;
 use Drupal\migrate\Event\MigrateEvents;
 use Drupal\migrate\Event\MigrateIdMapMessageEvent;
 use Drupal\migrate\MigrateExecutable;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\migrate_drupal\MigrationCreationTrait;
+use Drupal\migrate_plus\Entity\Migration;
+use Drupal\migrate_plus\Entity\MigrationGroup;
 
 class MigrateUpgradeDrushRunner {
 
@@ -23,7 +24,7 @@ class MigrateUpgradeDrushRunner {
   /**
    * The list of migrations to run and their configuration.
    *
-   * @var array
+   * @var \Drupal\migrate\Plugin\Migration[]
    */
   protected $migrationList;
 
@@ -33,6 +34,20 @@ class MigrateUpgradeDrushRunner {
    * @var \Drupal\migrate_upgrade\DrushLogMigrateMessage
    */
   protected static $messages;
+
+  /**
+   * The Drupal version being imported.
+   *
+   * @var string
+   */
+  protected $version;
+
+  /**
+   * The state key used to store database configuration.
+   *
+   * @var string
+   */
+  protected $databaseStateKey;
 
   /**
    * From the provided source information, instantiate the appropriate migrations
@@ -47,9 +62,10 @@ class MigrateUpgradeDrushRunner {
     $db_spec['prefix'] = $db_prefix;
 
     $connection = $this->getConnection($db_spec);
-    $version = $this->getLegacyDrupalVersion($connection);
-    $this->createDatabaseStateSettings($db_spec, $version);
-    $migrations = $this->getMigrations('migrate_drupal_' . $version, $version);
+    $this->version = $this->getLegacyDrupalVersion($connection);
+    $this->createDatabaseStateSettings($db_spec, $this->version);
+    $this->databaseStateKey = 'migrate_drupal_' . $this->version;
+    $migrations = $this->getMigrations($this->databaseStateKey, $this->version);
     $this->migrationList = [];
     foreach ($migrations as $migration) {
       $destination = $migration->get('destination');
@@ -78,6 +94,82 @@ class MigrateUpgradeDrushRunner {
       // drush_op() provides --simulate support.
       drush_op([$executable, 'import']);
     }
+  }
+
+  /**
+   * Export the configured migration plugins as configuration entities.
+   */
+  public function export() {
+    $db_info = \Drupal::state()->get($this->databaseStateKey);
+
+    // Create a group to hold the database configuration.
+    $group = [
+      'id' => $this->databaseStateKey,
+      'label' => 'Import from Drupal ' . $this->version,
+      'description' => 'Migrations originally generated from drush migrate-upgrade --configure-only',
+      'source_type' => 'Drupal ' . $this->version,
+      'shared_configuration' => [
+        'source' => [
+          'key' => 'drupal_' . $this->version,
+          'database' => $db_info['database'],
+        ]
+      ]
+    ];
+    $group = MigrationGroup::create($group);
+    $group->save();
+    foreach ($this->migrationList as $migration_id => $migration) {
+      drush_print(dt('Exporting @migration as @new_migration',
+        ['@migration' => $migration_id, '@new_migration' => $this->modifyId($migration_id)]));
+      $entity_array['id'] = $migration_id;
+      $entity_array['migration_group'] = $this->databaseStateKey;
+      $entity_array['migration_tags'] = $migration->get('migration_tags');
+      $entity_array['label'] = $migration->get('label');
+      $entity_array['source'] = $migration->getSourceConfiguration();
+      $entity_array['destination'] = $migration->getDestinationConfiguration();
+      $entity_array['process'] = $migration->get('process');
+      $entity_array['migration_dependencies'] = $migration->getMigrationDependencies();
+      $migration_entity = Migration::create($this->substituteIds($entity_array));
+      $migration_entity->save();
+    }
+  }
+
+  /**
+   * Rewrite any migration plugin IDs so they won't conflict with the core
+   * IDs.
+   *
+   * @param $entity_array
+   *   A configuration array for a migration.
+   *
+   * @return array
+   *   The migration configuration array modified with new IDs.
+   */
+  protected function substituteIds($entity_array) {
+    $entity_array['id'] = $this->modifyId($entity_array['id']);
+    foreach ($entity_array['migration_dependencies'] as $type => $dependencies) {
+      foreach ($dependencies as $key => $dependency) {
+        $entity_array['migration_dependencies'][$type][$key] = $this->modifyId($dependency);
+      }
+    }
+    foreach ($entity_array['process'] as $destination => $process) {
+      if (is_array($process)) {
+        if ($process['plugin'] == 'migration') {
+          $entity_array['process'][$destination]['migration'] =
+            $this->modifyId($process['migration']);
+        }
+      }
+    }
+    return $entity_array;
+  }
+
+  /**
+   * @param $id
+   *   The original core plugin ID.
+   *
+   * @return string
+   *   The ID modified to serve as a configuration entity ID.
+   */
+  protected function modifyId($id) {
+    return drush_get_option('migration-prefix', 'upgrade_') . str_replace(':', '_', $id);
   }
 
   /**

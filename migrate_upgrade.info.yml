@@ -8,4 +8,5 @@ dependencies:
   - system (>=8.1)
   - migrate
   - migrate_drupal
+  - migrate_plus
   - dblog

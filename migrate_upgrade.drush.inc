@@ -17,9 +17,12 @@ function migrate_upgrade_drush_command() {
       'legacy-db-url' => 'A Drupal 6 style database URL. Required.',
       'legacy-db-prefix' => 'Prefix of the legacy Drupal installation.',
       'legacy-root' => 'Site address or root of the legacy Drupal installation',
+      'configure-only' => 'Set up the appropriate upgrade processes but do not perform them',
+      'migration-prefix' => 'With configure-only, a prefix to apply to generated migration ids. Defaults to \'upgrade_\'',
     ],
     'examples' => [
       'migrate-upgrade --legacy-db-url=\'mysql://root:pass@127.0.0.1/d6\'' => 'Upgrade a Drupal 6 database to Drupal 8',
+      'migrate-upgrade --legacy-db-url=\'mysql://root:pass@127.0.0.1/d7\' --configure-only --migration-prefix=d7_custom_' => 'Generate migrations for a custom migration from Drupal 7 to Drupal 8',
     ],
     'drupal dependencies' => ['migrate_upgrade'],
   ];
@@ -43,8 +46,15 @@ function drush_migrate_upgrade() {
 
   try {
     $runner->configure();
-    $runner->import();
-    \Drupal::state()->set('migrate_drupal_ui.performed', REQUEST_TIME);
+    if (drush_get_option('configure-only')) {
+      $runner->export();
+    }
+    else {
+      $runner->import();
+      \Drupal::state()->set('migrate_drupal_ui.performed', REQUEST_TIME);
+    }
+    // Remove the global database state.
+    \Drupal::state()->delete('migrate.fallback_state_key');
   }
   catch (\Exception $e) {
     drush_log($e->getMessage(), 'error');
