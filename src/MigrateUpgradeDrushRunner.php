@@ -110,6 +110,7 @@ class MigrateUpgradeDrushRunner {
       'source_type' => 'Drupal ' . $this->version,
       'shared_configuration' => [
         'source' => [
+          'database_state_key' => $this->databaseStateKey,
           'key' => 'drupal_' . $this->version,
           'database' => $db_info['database'],
         ]
