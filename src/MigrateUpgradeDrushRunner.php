@@ -15,6 +15,7 @@ use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\migrate_drupal\MigrationCreationTrait;
 use Drupal\migrate_plus\Entity\Migration;
 use Drupal\migrate_plus\Entity\MigrationGroup;
+use Drupal\Core\Database\Database;
 
 class MigrateUpgradeDrushRunner {
 
@@ -56,14 +57,25 @@ class MigrateUpgradeDrushRunner {
    * @throws \Exception
    */
   public function configure() {
-    $db_url = drush_get_option('legacy-db-url');
-    $db_spec = drush_convert_db_from_db_url($db_url);
-    $db_prefix = drush_get_option('legacy-db-prefix');
-    $db_spec['prefix'] = $db_prefix;
+    $legacy_db_key = drush_get_option('legacy-db-key');
+    if (!empty($legacy_db_key)) {
+      $connection = Database::getConnection('default', drush_get_option('legacy-db-key'));
+      $this->version = $this->getLegacyDrupalVersion($connection);
+      $database_state['key'] = drush_get_option('legacy-db-key');
+      $database_state_key = 'migrate_drupal_' . $this->version;
+      \Drupal::state()->set($database_state_key, $database_state);
+      \Drupal::state()->set('migrate.fallback_state_key', $database_state_key);
+    }
+    else {
+      $db_url = drush_get_option('legacy-db-url');
+      $db_spec = drush_convert_db_from_db_url($db_url);
+      $db_prefix = drush_get_option('legacy-db-prefix');
+      $db_spec['prefix'] = $db_prefix;
+      $connection = $this->getConnection($db_spec);
+      $this->version = $this->getLegacyDrupalVersion($connection);
+      $this->createDatabaseStateSettings($db_spec, $this->version);
+    }
 
-    $connection = $this->getConnection($db_spec);
-    $this->version = $this->getLegacyDrupalVersion($connection);
-    $this->createDatabaseStateSettings($db_spec, $this->version);
     $this->databaseStateKey = 'migrate_drupal_' . $this->version;
     $migrations = $this->getMigrations($this->databaseStateKey, $this->version);
     $this->migrationList = [];
@@ -110,12 +122,17 @@ class MigrateUpgradeDrushRunner {
       'source_type' => 'Drupal ' . $this->version,
       'shared_configuration' => [
         'source' => [
-          'database_state_key' => $this->databaseStateKey,
           'key' => 'drupal_' . $this->version,
-          'database' => $db_info['database'],
         ]
       ]
     ];
+
+    // Only add the database connection info to the configuration entity
+    // if it was passed in as a parameter.
+    if (!empty(drush_get_option('legacy-db-url'))) {
+      $group['shared_configuration']['database'] = $db_info['database'];
+    }
+
     $group = MigrationGroup::create($group);
     $group->save();
     foreach ($this->migrationList as $migration_id => $migration) {
