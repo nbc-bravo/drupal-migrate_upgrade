@@ -168,15 +168,28 @@ class MigrateUpgradeDrushRunner {
         $entity_array['migration_dependencies'][$type][$key] = $this->modifyId($dependency);
       }
     }
-    foreach ($entity_array['process'] as $destination => $process) {
-      if (is_array($process)) {
-        if ($process['plugin'] == 'migration') {
-          $entity_array['process'][$destination]['migration'] =
-            $this->modifyId($process['migration']);
+    $this->substituteMigrationIds($entity_array['process']);
+    return $entity_array;
+  }
+
+  /**
+   * Recursively substitute IDs for migration plugins.
+   *
+   * @param mixed $process
+   */
+  protected function substituteMigrationIds(&$process) {
+    if (is_array($process)) {
+      // We found a migration plugin, change the ID.
+      if (isset($process['plugin']) && $process['plugin'] == 'migration') {
+        $process['migration'] = $this->modifyId($process['migration']);
+      }
+      else {
+        // Recurse on each array member.
+        foreach ($process as &$subprocess) {
+          $this->substituteMigrationIds($subprocess);
         }
       }
     }
-    return $entity_array;
   }
 
   /**
