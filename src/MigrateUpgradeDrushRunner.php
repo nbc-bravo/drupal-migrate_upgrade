@@ -181,7 +181,16 @@ class MigrateUpgradeDrushRunner {
     if (is_array($process)) {
       // We found a migration plugin, change the ID.
       if (isset($process['plugin']) && $process['plugin'] == 'migration') {
-        $process['migration'] = $this->modifyId($process['migration']);
+        if (is_array($process['migration'])) {
+          $new_migration = [];
+          foreach ($process['migration'] as $migration) {
+            $new_migration[] = $this->modifyId($migration);
+          }
+          $process['migration'] = $new_migration;
+        }
+        else {
+          $process['migration'] = $this->modifyId($process['migration']);
+        }
       }
       else {
         // Recurse on each array member.
