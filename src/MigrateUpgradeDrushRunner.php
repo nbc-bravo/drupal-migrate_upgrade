@@ -75,12 +75,13 @@ class MigrateUpgradeDrushRunner {
     $migrations = $this->getMigrations($this->databaseStateKey, $this->version);
     $this->migrationList = [];
     foreach ($migrations as $migration) {
-      $destination = $migration->get('destination');
+      $destination = $migration->getDestinationConfiguration();
       if ($destination['plugin'] === 'entity:file') {
         // Make sure we have a single trailing slash.
         $source_base_path = rtrim(drush_get_option('legacy-root'), '/') . '/';
-        $destination['source_base_path'] = $source_base_path;
-        $migration->set('destination', $destination);
+        $source = $migration->getSourceConfiguration();
+        $source['constants']['source_base_path'] = $source_base_path;
+        $migration->set('source', $source);
       }
       $this->migrationList[$migration->id()] = $migration;
     }
