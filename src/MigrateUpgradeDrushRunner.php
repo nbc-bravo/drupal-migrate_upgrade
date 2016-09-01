@@ -1,10 +1,5 @@
 <?php
 
-/**
- * @file
- * Contains \Drupal\migrate_upgrade\MigrateUpgradeDrushRunner.
- */
-
 namespace Drupal\migrate_upgrade;
 
 use Drupal\migrate\Plugin\MigrationInterface;
