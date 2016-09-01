@@ -7,14 +7,14 @@ use Drupal\migrate\Event\MigrateEvents;
 use Drupal\migrate\Event\MigrateIdMapMessageEvent;
 use Drupal\migrate\MigrateExecutable;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
-use Drupal\migrate_drupal\MigrationCreationTrait;
+use Drupal\migrate_drupal\MigrationConfigurationTrait;
 use Drupal\migrate_plus\Entity\Migration;
 use Drupal\migrate_plus\Entity\MigrationGroup;
 use Drupal\Core\Database\Database;
 
 class MigrateUpgradeDrushRunner {
 
-  use MigrationCreationTrait;
+  use MigrationConfigurationTrait;
   use StringTranslationTrait;
 
   /**
