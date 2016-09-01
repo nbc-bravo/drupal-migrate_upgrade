@@ -125,7 +125,7 @@ class MigrateUpgradeDrushRunner {
     // Only add the database connection info to the configuration entity
     // if it was passed in as a parameter.
     if (!empty(drush_get_option('legacy-db-url'))) {
-      $group['shared_configuration']['database'] = $db_info['database'];
+      $group['shared_configuration']['source']['database'] = $db_info['database'];
     }
 
     $group = MigrationGroup::create($group);
