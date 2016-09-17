@@ -4,8 +4,7 @@ description: 'Drush support for direct upgrades from older Drupal versions.'
 package: Migration
 core: 8.x
 dependencies:
-  - system (>=8.2)
-  - migrate
-  - migrate_drupal
-  - migrate_plus
-  - dblog
+  - drupal:migrate (>=8.2)
+  - drupal:migrate_drupal
+  - migrate_plus:migrate_plus
+  - drupal:dblog
