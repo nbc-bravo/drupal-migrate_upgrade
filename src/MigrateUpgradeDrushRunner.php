@@ -46,6 +46,13 @@ class MigrateUpgradeDrushRunner {
   protected $databaseStateKey;
 
   /**
+   * List of D6 node migration IDs we've seen.
+   *
+   * @var array
+   */
+  protected $nodeMigrations = [];
+
+  /**
    * From the provided source information, instantiate the appropriate migrations
    * in the active configuration.
    *
@@ -75,15 +82,61 @@ class MigrateUpgradeDrushRunner {
     $migrations = $this->getMigrations($this->databaseStateKey, $this->version);
     $this->migrationList = [];
     foreach ($migrations as $migration) {
-      $destination = $migration->getDestinationConfiguration();
-      if ($destination['plugin'] === 'entity:file') {
-        // Make sure we have a single trailing slash.
-        $source_base_path = rtrim(drush_get_option('legacy-root'), '/') . '/';
-        $source = $migration->getSourceConfiguration();
-        $source['constants']['source_base_path'] = $source_base_path;
-        $migration->set('source', $source);
-      }
+      $this->applyFilePath($migration);
+      $this->expandNodeMigrations($migration);
       $this->migrationList[$migration->id()] = $migration;
+    }
+  }
+
+  /**
+   * Adds the source base path configuration to relevant migrations.
+   *
+   * @param \Drupal\migrate\Plugin\MigrationInterface $migration
+   *   Migration to alter with the provided path.
+   */
+  protected function applyFilePath(MigrationInterface $migration) {
+    $destination = $migration->getDestinationConfiguration();
+    if ($destination['plugin'] === 'entity:file') {
+      // Make sure we have a single trailing slash.
+      $source_base_path = rtrim(drush_get_option('legacy-root'), '/') . '/';
+      $source = $migration->getSourceConfiguration();
+      $source['constants']['source_base_path'] = $source_base_path;
+      $migration->set('source', $source);
+    }
+  }
+
+  /**
+   * For D6 term_node migrations, make sure the nid reference is expanded.
+   *
+   * @param \Drupal\migrate\Plugin\MigrationInterface $migration
+   *   Migration to alter with the list of node migrations.
+   */
+  protected function expandNodeMigrations(MigrationInterface $migration) {
+    $source = $migration->getSourceConfiguration();
+    // Track the node migrations as we see them.
+    if ($source['plugin'] == 'd6_node') {
+      $this->nodeMigrations[] = $migration->id();
+    }
+    elseif ($source['plugin'] == 'd6_term_node' || $source['plugin'] == 'd6_term_node_revision') {
+      if ($source['plugin'] == 'd6_term_node') {
+        $id_property = 'nid';
+      }
+      else {
+        $id_property = 'vid';
+      }
+      // If the ID mapping is to the underived d6_node migration, replace
+      // it with an expanded list of node migrations.
+      $process = $migration->getProcess();
+      $new_nid_process = [];
+      foreach ($process[$id_property] as $delta => $plugin_configuration) {
+        if ($plugin_configuration['plugin'] == 'migration' &&
+            is_string($plugin_configuration['migration']) &&
+            substr($plugin_configuration['migration'], -7) == 'd6_node') {
+          $plugin_configuration['migration'] = $this->nodeMigrations;
+        }
+        $new_nid_process[$delta] = $plugin_configuration;
+      }
+      $migration->setProcessOfProperty($id_property, $new_nid_process);
     }
   }
 
