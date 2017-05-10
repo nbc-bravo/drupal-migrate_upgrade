@@ -203,6 +203,8 @@ class MigrateUpgradeDrushRunner {
       drush_print(dt('Exporting @migration as @new_migration',
         ['@migration' => $migration_id, '@new_migration' => $this->modifyId($migration_id)]));
       $entity_array['id'] = $migration_id;
+      $entity_array['class'] = $migration->get('class');
+      $entity_array['cck_plugin_method'] = $migration->get('cck_plugin_method');
       $entity_array['migration_group'] = $this->databaseStateKey;
       $entity_array['migration_tags'] = $migration->get('migration_tags');
       $entity_array['label'] = $migration->get('label');
