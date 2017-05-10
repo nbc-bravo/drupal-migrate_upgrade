@@ -1,7 +1,7 @@
 The migrate_upgrade module provides drush support for performing upgrades from
 previous versions of Drupal to Drupal 8. It implements two drush commands:
 
-* migrate-upgrade - performs a complete import of the source site's congiuration
+* migrate-upgrade - performs a complete import of the source site's configuration
 and content into the target Drupal 8 site. Optionally, with the --configure-only
 flag, it may create migration configurations for such an import without actually
 running them, to permit customization of the import process.
