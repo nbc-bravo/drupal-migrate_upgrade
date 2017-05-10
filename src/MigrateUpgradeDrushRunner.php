@@ -192,6 +192,11 @@ class MigrateUpgradeDrushRunner {
       $group['shared_configuration']['source']['database'] = $db_info['database'];
     }
 
+    // Ditto for the key.
+    if (!empty(drush_get_option('legacy-db-key'))) {
+      $group['shared_configuration']['source']['key'] = drush_get_option('legacy-db-key');
+    }
+
     $group = MigrationGroup::create($group);
     $group->save();
     foreach ($this->migrationList as $migration_id => $migration) {
