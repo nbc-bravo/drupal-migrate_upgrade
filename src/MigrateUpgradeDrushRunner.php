@@ -53,6 +53,16 @@ class MigrateUpgradeDrushRunner {
   protected $nodeMigrations = [];
 
   /**
+   * List of process plugin IDs used to lookup migrations.
+   *
+   * @var array
+   */
+  protected $migrationLookupPluginIds = [
+    'migration',
+    'migration_lookup',
+  ];
+
+  /**
    * From the provided source information, instantiate the appropriate migrations
    * in the active configuration.
    *
@@ -129,7 +139,7 @@ class MigrateUpgradeDrushRunner {
       $process = $migration->getProcess();
       $new_nid_process = [];
       foreach ($process[$id_property] as $delta => $plugin_configuration) {
-        if ($plugin_configuration['plugin'] == 'migration' &&
+        if (in_array($plugin_configuration['plugin'], $this->migrationLookupPluginIds) &&
             is_string($plugin_configuration['migration']) &&
             substr($plugin_configuration['migration'], -7) == 'd6_node') {
           $plugin_configuration['migration'] = $this->nodeMigrations;
@@ -229,7 +239,7 @@ class MigrateUpgradeDrushRunner {
   protected function substituteMigrationIds(&$process) {
     if (is_array($process)) {
       // We found a migration plugin, change the ID.
-      if (isset($process['plugin']) && $process['plugin'] == 'migration') {
+      if (isset($process['plugin']) && in_array($process['plugin'], $this->migrationLookupPluginIds)) {
         if (is_array($process['migration'])) {
           $new_migration = [];
           foreach ($process['migration'] as $migration) {
