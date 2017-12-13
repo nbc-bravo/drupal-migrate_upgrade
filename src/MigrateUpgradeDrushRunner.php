@@ -205,6 +205,7 @@ class MigrateUpgradeDrushRunner {
       $entity_array['id'] = $migration_id;
       $entity_array['class'] = $migration->get('class');
       $entity_array['cck_plugin_method'] = $migration->get('cck_plugin_method');
+      $entity_array['field_plugin_method'] = $migration->get('field_plugin_method');
       $entity_array['migration_group'] = $this->databaseStateKey;
       $entity_array['migration_tags'] = $migration->get('migration_tags');
       $entity_array['label'] = $migration->get('label');
