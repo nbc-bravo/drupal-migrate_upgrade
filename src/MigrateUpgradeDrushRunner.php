@@ -258,6 +258,16 @@ class MigrateUpgradeDrushRunner {
         else {
           $process['migration'] = $this->modifyId($process['migration']);
         }
+        // The source_ids configuration for migrate_lookup is keyed by
+        // migration id.  If it is there, we need to rekey to the new ids.
+        if (isset($process['source_ids']) && is_array($process['source_ids'])) {
+          $new_source_ids = [];
+          foreach ($process['source_ids'] as $migration_id => $source_ids) {
+            $new_migration_id = $this->modifyId($migration_id);
+            $new_source_ids[$new_migration_id] = $source_ids;
+          }
+          $process['source_ids'] = $new_source_ids;
+        }
       }
       else {
         // Recurse on each array member.
