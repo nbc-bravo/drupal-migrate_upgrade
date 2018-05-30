@@ -50,7 +50,14 @@ class MigrateUpgradeDrushRunner {
    *
    * @var array
    */
-  protected $nodeMigrations = [];
+  protected $d6NodeMigrations = [];
+
+   /**
+   * List of D6 node revision migration IDs we've seen.
+   *
+   * @var array
+   */
+  protected $d6RevisionMigrations = [];
 
   /**
    * List of process plugin IDs used to lookup migrations.
@@ -123,30 +130,42 @@ class MigrateUpgradeDrushRunner {
    */
   protected function expandNodeMigrations(MigrationInterface $migration) {
     $source = $migration->getSourceConfiguration();
-    // Track the node migrations as we see them.
+    // Track the node and node_revision migrations as we see them.
     if ($source['plugin'] == 'd6_node') {
-      $this->nodeMigrations[] = $migration->id();
+      $this->d6NodeMigrations[] = $migration->id();
     }
-    elseif ($source['plugin'] == 'd6_term_node' || $source['plugin'] == 'd6_term_node_revision') {
-      if ($source['plugin'] == 'd6_term_node') {
-        $id_property = 'nid';
-      }
-      else {
-        $id_property = 'vid';
-      }
+    elseif ($source['plugin'] == 'd6_node_revision') {
+      $this->d6RevisionMigrations[] = $migration->id();
+    }
+    elseif ($source['plugin'] == 'd6_term_node') {
       // If the ID mapping is to the underived d6_node migration, replace
       // it with an expanded list of node migrations.
       $process = $migration->getProcess();
       $new_nid_process = [];
-      foreach ($process[$id_property] as $delta => $plugin_configuration) {
+      foreach ($process['nid'] as $delta => $plugin_configuration) {
         if (in_array($plugin_configuration['plugin'], $this->migrationLookupPluginIds) &&
             is_string($plugin_configuration['migration']) &&
             substr($plugin_configuration['migration'], -7) == 'd6_node') {
-          $plugin_configuration['migration'] = $this->nodeMigrations;
+          $plugin_configuration['migration'] = $this->d6NodeMigrations;
         }
         $new_nid_process[$delta] = $plugin_configuration;
       }
-      $migration->setProcessOfProperty($id_property, $new_nid_process);
+      $migration->setProcessOfProperty('nid', $new_nid_process);
+    }
+    elseif ($source['plugin'] == 'd6_term_node_revision') {
+      // If the ID mapping is to the underived d6_node_revision migration, replace
+      // it with an expanded list of node migrations.
+      $process = $migration->getProcess();
+      $new_vid_process = [];
+      foreach ($process['vid'] as $delta => $plugin_configuration) {
+        if (in_array($plugin_configuration['plugin'], $this->migrationLookupPluginIds) &&
+            is_string($plugin_configuration['migration']) &&
+            substr($plugin_configuration['migration'], -16) == 'd6_node_revision') {
+          $plugin_configuration['migration'] = $this->d6RevisionMigrations;
+        }
+        $new_vid_process[$delta] = $plugin_configuration;
+      }
+      $migration->setProcessOfProperty('vid', $new_vid_process);
     }
   }
 
