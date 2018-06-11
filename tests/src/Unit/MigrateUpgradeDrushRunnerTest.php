@@ -159,14 +159,16 @@ if (!function_exists('drush_get_option')) {
    * Override for called function.
    *
    * @param mixed $option
-   *   An option.
+   *   The name of the option to get
    * @param mixed $default
-   *   The default.
+   *   Optional. The value to return if the option has not been set
+   * @param mixed $context
+   *   Optional. The context to check for the option. If this is set, only this context will be searched.
    *
    * @return mixed
    *   The default, for this override.
    */
-  function drush_get_option($option, $default) {
+  function drush_get_option($option, $default = NULL, $context = NULL) {
     return $default;
   }
 

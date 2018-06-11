@@ -53,7 +53,7 @@ function drush_migrate_upgrade() {
     }
     else {
       $runner->import();
-      \Drupal::state()->set('migrate_drupal_ui.performed', REQUEST_TIME);
+      \Drupal::state()->set('migrate_drupal_ui.performed', \Drupal::time()->getRequestTime());
     }
     // Remove the global database state.
     \Drupal::state()->delete('migrate.fallback_state_key');

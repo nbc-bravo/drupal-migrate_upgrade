@@ -11,6 +11,7 @@ use Drupal\migrate_drupal\MigrationConfigurationTrait;
 use Drupal\migrate_plus\Entity\Migration;
 use Drupal\migrate_plus\Entity\MigrationGroup;
 use Drupal\Core\Database\Database;
+use Drush\Sql\SqlBase;
 
 class MigrateUpgradeDrushRunner {
 
@@ -52,12 +53,19 @@ class MigrateUpgradeDrushRunner {
    */
   protected $d6NodeMigrations = [];
 
-   /**
+  /**
    * List of D6 node revision migration IDs we've seen.
    *
    * @var array
    */
   protected $d6RevisionMigrations = [];
+
+  /**
+   * Drush options parameters.
+   *
+   * @var array
+   */
+  protected $options = [];
 
   /**
    * List of process plugin IDs used to lookup migrations.
@@ -70,25 +78,56 @@ class MigrateUpgradeDrushRunner {
   ];
 
   /**
+   * MigrateUpgradeDrushRunner constructor.
+   *
+   * @param array $options
+   *   Drush options parameters.
+   */
+  public function __construct(array $options = []) {
+    $this->setOptions($options);
+  }
+
+  /**
+   * Set options parameters according to Drush version.
+   *
+   * @param array $options
+   *   Drush options parameters.
+   */
+  protected function setOptions(array $options = []) {
+    $this->options = $options;
+    // Drush <= 8.
+    if (empty($this->options)) {
+      $this->options = [
+        'legacy_db_key' => drush_get_option('legacy-db-key'),
+        'legacy-db-url' => drush_get_option('legacy-db-url'),
+        'legacy-db-prefix' => drush_get_option('legacy-db-prefix'),
+        'legacy-root' => drush_get_option('legacy-root'),
+        'debug' => drush_get_option('debug'),
+        'migration-prefix' => drush_get_option('migration-prefix', 'upgrade_'),
+      ];
+    }
+  }
+
+  /**
    * From the provided source information, instantiate the appropriate migrations
    * in the active configuration.
    *
    * @throws \Exception
    */
   public function configure() {
-    $legacy_db_key = drush_get_option('legacy-db-key');
+    $legacy_db_key = $this->options['legacy-db-key'];
+    $db_url = $this->options['legacy-db-url'];
+    $db_prefix = $this->options['legacy-db-prefix'];
     if (!empty($legacy_db_key)) {
-      $connection = Database::getConnection('default', drush_get_option('legacy-db-key'));
+      $connection = Database::getConnection('default', $legacy_db_key);
       $this->version = $this->getLegacyDrupalVersion($connection);
-      $database_state['key'] = drush_get_option('legacy-db-key');
+      $database_state['key'] = $legacy_db_key;
       $database_state_key = 'migrate_drupal_' . $this->version;
       \Drupal::state()->set($database_state_key, $database_state);
       \Drupal::state()->set('migrate.fallback_state_key', $database_state_key);
     }
     else {
-      $db_url = drush_get_option('legacy-db-url');
-      $db_spec = drush_convert_db_from_db_url($db_url);
-      $db_prefix = drush_get_option('legacy-db-prefix');
+      $db_spec = SqlBase::dbSpecFromDbUrl($db_url);
       $db_spec['prefix'] = $db_prefix;
       $connection = $this->getConnection($db_spec);
       $this->version = $this->getLegacyDrupalVersion($connection);
@@ -115,7 +154,7 @@ class MigrateUpgradeDrushRunner {
     $destination = $migration->getDestinationConfiguration();
     if ($destination['plugin'] === 'entity:file') {
       // Make sure we have a single trailing slash.
-      $source_base_path = rtrim(drush_get_option('legacy-root'), '/') . '/';
+      $source_base_path = rtrim($this->options['legacy-root'], '/') . '/';
       $source = $migration->getSourceConfiguration();
       $source['constants']['source_base_path'] = $source_base_path;
       $migration->set('source', $source);
@@ -174,7 +213,7 @@ class MigrateUpgradeDrushRunner {
    */
   public function import() {
     static::$messages = new DrushLogMigrateMessage();
-    if (drush_get_option('debug')) {
+    if ($this->options['debug']) {
       \Drupal::service('event_dispatcher')->addListener(MigrateEvents::IDMAP_MESSAGE,
         [get_class(), 'onIdMapMessage']);
     }
@@ -201,19 +240,19 @@ class MigrateUpgradeDrushRunner {
       'shared_configuration' => [
         'source' => [
           'key' => 'drupal_' . $this->version,
-        ]
-      ]
+        ],
+      ],
     ];
 
     // Only add the database connection info to the configuration entity
     // if it was passed in as a parameter.
-    if (!empty(drush_get_option('legacy-db-url'))) {
+    if (!empty($this->options['legacy-db-url'])) {
       $group['shared_configuration']['source']['database'] = $db_info['database'];
     }
 
     // Ditto for the key.
-    if (!empty(drush_get_option('legacy-db-key'))) {
-      $group['shared_configuration']['source']['key'] = drush_get_option('legacy-db-key');
+    if (!empty($this->options['legacy-db-key'])) {
+      $group['shared_configuration']['source']['key'] = $this->options['legacy-db-key'];
     }
 
     $group = MigrationGroup::create($group);
@@ -241,13 +280,13 @@ class MigrateUpgradeDrushRunner {
    * Rewrite any migration plugin IDs so they won't conflict with the core
    * IDs.
    *
-   * @param $entity_array
+   * @param array $entity_array
    *   A configuration array for a migration.
    *
    * @return array
    *   The migration configuration array modified with new IDs.
    */
-  protected function substituteIds($entity_array) {
+  protected function substituteIds(array $entity_array) {
     $entity_array['id'] = $this->modifyId($entity_array['id']);
     foreach ($entity_array['migration_dependencies'] as $type => $dependencies) {
       foreach ($dependencies as $key => $dependency) {
@@ -305,7 +344,7 @@ class MigrateUpgradeDrushRunner {
    *   The ID modified to serve as a configuration entity ID.
    */
   protected function modifyId($id) {
-    return drush_get_option('migration-prefix', 'upgrade_') . str_replace(':', '_', $id);
+    return $this->options['migration-prefix'] . str_replace(':', '_', $id);
   }
 
   /**
