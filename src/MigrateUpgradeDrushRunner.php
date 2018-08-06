@@ -140,6 +140,7 @@ class MigrateUpgradeDrushRunner {
     foreach ($migrations as $migration) {
       $this->applyFilePath($migration);
       $this->expandNodeMigrations($migration);
+      $this->prefixFileMigration($migration);
       $this->migrationList[$migration->id()] = $migration;
     }
   }
@@ -205,6 +206,23 @@ class MigrateUpgradeDrushRunner {
         $new_vid_process[$delta] = $plugin_configuration;
       }
       $migration->setProcessOfProperty('vid', $new_vid_process);
+    }
+  }
+
+  /**
+   * For D6 file fields, make sure the d6_file migration is prefixed.
+   *
+   * @param \Drupal\migrate\Plugin\MigrationInterface $migration
+   *   Migration to alter.
+   */
+  protected function prefixFileMigration(MigrationInterface $migration) {
+    $process = $migration->getProcess();
+    foreach ($process as $destination => &$plugins) {
+      foreach ($plugins as &$plugin) {
+        if ($plugin['plugin'] == 'd6_field_file') {
+          $plugin['migration'] = $this->modifyId($plugin['migration']);
+        }
+      }
     }
   }
 
