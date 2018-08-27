@@ -2,6 +2,7 @@
 
 namespace Drupal\migrate_upgrade;
 
+use Drupal\Core\Config\Entity\ConfigEntityInterface;
 use Drupal\migrate\Plugin\MigrationInterface;
 use Drupal\migrate\Event\MigrateEvents;
 use Drupal\migrate\Event\MigrateIdMapMessageEvent;
@@ -250,7 +251,7 @@ class MigrateUpgradeDrushRunner {
     $db_info = \Drupal::state()->get($this->databaseStateKey);
 
     // Create a group to hold the database configuration.
-    $group = [
+    $group_details = [
       'id' => $this->databaseStateKey,
       'label' => 'Import from Drupal ' . $this->version,
       'description' => 'Migrations originally generated from drush migrate-upgrade --configure-only',
@@ -265,32 +266,67 @@ class MigrateUpgradeDrushRunner {
     // Only add the database connection info to the configuration entity
     // if it was passed in as a parameter.
     if (!empty($this->options['legacy-db-url'])) {
-      $group['shared_configuration']['source']['database'] = $db_info['database'];
+      $group_details['shared_configuration']['source']['database'] = $db_info['database'];
     }
 
     // Ditto for the key.
     if (!empty($this->options['legacy-db-key'])) {
-      $group['shared_configuration']['source']['key'] = $this->options['legacy-db-key'];
+      $group_details['shared_configuration']['source']['key'] = $this->options['legacy-db-key'];
     }
 
-    $group = MigrationGroup::create($group);
+    // Load existing migration group and update it with changed settings,
+    // or create a new one if none exists.
+    $group = MigrationGroup::load($group_details['id']);
+    if (empty($group)) {
+      $group = MigrationGroup::create($group_details);
+    }
+    else {
+      $this->setEntityProperties($group, $group_details);
+    }
     $group->save();
     foreach ($this->migrationList as $migration_id => $migration) {
       drush_print(dt('Exporting @migration as @new_migration',
         ['@migration' => $migration_id, '@new_migration' => $this->modifyId($migration_id)]));
-      $entity_array['id'] = $migration_id;
-      $entity_array['class'] = $migration->get('class');
-      $entity_array['cck_plugin_method'] = $migration->get('cck_plugin_method');
-      $entity_array['field_plugin_method'] = $migration->get('field_plugin_method');
-      $entity_array['migration_group'] = $this->databaseStateKey;
-      $entity_array['migration_tags'] = $migration->get('migration_tags');
-      $entity_array['label'] = $migration->get('label');
-      $entity_array['source'] = $migration->getSourceConfiguration();
-      $entity_array['destination'] = $migration->getDestinationConfiguration();
-      $entity_array['process'] = $migration->get('process');
-      $entity_array['migration_dependencies'] = $migration->getMigrationDependencies();
-      $migration_entity = Migration::create($this->substituteIds($entity_array));
+      $migration_details['id'] = $migration_id;
+      $migration_details['class'] = $migration->get('class');
+      $migration_details['cck_plugin_method'] = $migration->get('cck_plugin_method');
+      $migration_details['field_plugin_method'] = $migration->get('field_plugin_method');
+      $migration_details['migration_group'] = $this->databaseStateKey;
+      $migration_details['migration_tags'] = $migration->get('migration_tags');
+      $migration_details['label'] = $migration->get('label');
+      $migration_details['source'] = $migration->getSourceConfiguration();
+      $migration_details['destination'] = $migration->getDestinationConfiguration();
+      $migration_details['process'] = $migration->get('process');
+      $migration_details['migration_dependencies'] = $migration->getMigrationDependencies();
+      $migration_details = $this->substituteIds($migration_details);
+      $migration_entity = Migration::load($migration_details['id']);
+      if (empty($migration_entity)) {
+        $migration_entity = Migration::create($migration_details);
+      }
+      else {
+        $this->setEntityProperties($migration_entity, $migration_details);
+      }
       $migration_entity->save();
+    }
+  }
+
+  /**
+   * Set entity properties.
+   *
+   * @param ConfigEntityInterface $entity
+   *   The entity to update.
+   * @param array $properties
+   *   The properties to update.
+   */
+  protected function setEntityProperties(ConfigEntityInterface $entity, array $properties) {
+    foreach ($properties as $key => $value) {
+      $entity->set($key, $value);
+    }
+    foreach ($entity as $property => $value) {
+      // Filter out values not in updated properties.
+      if (!isset($properties[$property])) {
+        $entity->set($property, NULL);
+      }
     }
   }
 
