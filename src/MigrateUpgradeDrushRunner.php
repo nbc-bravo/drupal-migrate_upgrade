@@ -2,6 +2,7 @@
 
 namespace Drupal\migrate_upgrade;
 
+use Drupal\Component\Plugin\PluginBase;
 use Drupal\Core\Config\Entity\ConfigEntityInterface;
 use Drupal\migrate\Plugin\MigrationInterface;
 use Drupal\migrate\Event\MigrateEvents;
@@ -24,7 +25,7 @@ class MigrateUpgradeDrushRunner {
    *
    * @var \Drupal\migrate\Plugin\Migration[]
    */
-  protected $migrationList;
+  protected $migrationList = [];
 
   /**
    * MigrateMessage instance to display messages during the migration process.
@@ -343,9 +344,11 @@ class MigrateUpgradeDrushRunner {
   protected function substituteIds(array $entity_array) {
     $entity_array['id'] = $this->modifyId($entity_array['id']);
     foreach ($entity_array['migration_dependencies'] as $type => $dependencies) {
-      foreach ($dependencies as $key => $dependency) {
-        $entity_array['migration_dependencies'][$type][$key] = $this->modifyId($dependency);
+      $new_dependencies = [];
+      foreach ($dependencies as $dependency) {
+        $new_dependencies = array_merge($new_dependencies, array_map([$this, 'modifyId'], $this->expandPluginIds([$dependency])));
       }
+      $entity_array['migration_dependencies'][$type] = $new_dependencies;
     }
     $this->substituteMigrationIds($entity_array['process']);
     return $entity_array;
@@ -361,14 +364,21 @@ class MigrateUpgradeDrushRunner {
       // We found a migration plugin, change the ID.
       if (isset($process['plugin']) && in_array($process['plugin'], $this->migrationLookupPluginIds)) {
         if (is_array($process['migration'])) {
-          $new_migration = [];
-          foreach ($process['migration'] as $migration) {
-            $new_migration[] = $this->modifyId($migration);
-          }
-          $process['migration'] = $new_migration;
+          $migration_ids = $process['migration'];
         }
         else {
-          $process['migration'] = $this->modifyId($process['migration']);
+          $migration_ids = [$process['migration']];
+        }
+        $expanded_migration_ids = $this->expandPluginIds($migration_ids);
+        $new_migration_ids = array_map([
+          $this,
+          'modifyId',
+        ], $expanded_migration_ids);
+        if (count($new_migration_ids) == 1) {
+          $process['migration'] = reset($new_migration_ids);
+        }
+        else {
+          $process['migration'] = $new_migration_ids;
         }
         // The source_ids configuration for migrate_lookup is keyed by
         // migration id.  If it is there, we need to rekey to the new ids.
@@ -422,6 +432,30 @@ class MigrateUpgradeDrushRunner {
       // drush_op() provides --simulate support.
       drush_op([$executable, 'rollback']);
     }
+  }
+
+  /**
+   * Expand derivative migration dependencies.
+   *
+   * We need to expand any derivative migrations. Derivative migrations are
+   * calculated by migration derivers such as D6NodeDeriver. This allows
+   * migrations to depend on the base id and then have a dependency on all
+   * derivative migrations. For example, d6_comment depends on d6_node but after
+   * we've expanded the dependencies it will depend on d6_node:page,
+   * d6_node:story and so on, for other derivative migrations.
+   *
+   * @return array
+   *   An array of expanded plugin ids.
+   */
+  protected function expandPluginIds(array $migration_ids) {
+    $plugin_ids = [];
+    foreach ($migration_ids as $id) {
+      $plugin_ids += preg_grep('/^' . preg_quote($id, '/') . PluginBase::DERIVATIVE_SEPARATOR . '/', array_keys($this->migrationList));
+      if (array_key_exists($id, $this->migrationList)) {
+        $plugin_ids[] = $id;
+      }
+    }
+    return array_values($plugin_ids);
   }
 
   /**
