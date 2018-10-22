@@ -100,7 +100,7 @@ class MigrateUpgradeDrushRunner {
     // Drush <= 8.
     if (empty($this->options)) {
       $this->options = [
-        'legacy_db_key' => drush_get_option('legacy-db-key'),
+        'legacy-db-key' => drush_get_option('legacy-db-key'),
         'legacy-db-url' => drush_get_option('legacy-db-url'),
         'legacy-db-prefix' => drush_get_option('legacy-db-prefix'),
         'legacy-root' => drush_get_option('legacy-root'),
