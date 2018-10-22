@@ -129,7 +129,14 @@ class MigrateUpgradeDrushRunner {
       \Drupal::state()->set('migrate.fallback_state_key', $database_state_key);
     }
     else {
-      $db_spec = SqlBase::dbSpecFromDbUrl($db_url);
+      // Maintain some simple BC with Drush 8. Only call Drush 9 if it exists.
+      // Otherwise fallback to the legacy Drush 8 method.
+      if(method_exists(SqlBase::class, 'dbSpecFromDBUrl')) {
+        $db_spec = SqlBase::dbSpecFromDbUrl($db_url);
+      }
+      else {
+        $db_spec = drush_convert_db_from_db_url($db_url);
+      }
       $db_spec['prefix'] = $db_prefix;
       $connection = $this->getConnection($db_spec);
       $this->version = $this->getLegacyDrupalVersion($connection);
