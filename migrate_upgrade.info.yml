@@ -7,4 +7,3 @@ dependencies:
   - drupal:migrate (>=8.2)
   - drupal:migrate_drupal
   - migrate_plus:migrate_plus
-  - drupal:dblog

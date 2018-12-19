@@ -202,7 +202,7 @@ class TestMigrateUpgradeDrushRunner extends MigrateUpgradeDrushRunner {
   /**
    * {@inheritdoc}
    */
-  public function substituteIds($entity_array) {
+  public function substituteIds(array $entity_array) {
     return parent::substituteIds($entity_array);
   }
 

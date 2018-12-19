@@ -2,10 +2,12 @@
     "name": "drupal/migrate_upgrade",
     "description": "Drush support for direct upgrades from older Drupal versions.",
     "type": "drupal-module",
-    "require-dev": {
-        "drupal/coder": "^8"
-    },
     "license": "GPL-2.0+",
-    "require": {},
+    "require": {
+        "drupal/migrate_plus": "^4"
+    },
+    "require-dev": {
+        "drupal/migrate_plus": "4.x-dev"
+    },
     "minimum-stability": "dev"
 }
