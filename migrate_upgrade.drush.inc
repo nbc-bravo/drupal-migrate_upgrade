@@ -40,8 +40,9 @@ function migrate_upgrade_drush_command() {
 }
 
 /**
- * Execute the upgrade command, configuring the necessary migrations and
- * optionally perform the imports.
+ * Execute the upgrade command, configuring the necessary migrations.
+ *
+ * Optionally perform the imports.
  */
 function drush_migrate_upgrade() {
   $runner = new MigrateUpgradeDrushRunner();
@@ -64,8 +65,7 @@ function drush_migrate_upgrade() {
 }
 
 /**
- * Rolls back any upgrade migrations that are present, and deletes the migrations
- * themselves.
+ * Rolls back any upgrade migrations that are present.
  */
 function drush_migrate_upgrade_rollback() {
   if ($date_performed = \Drupal::state()->get('migrate_drupal_ui.performed')) {

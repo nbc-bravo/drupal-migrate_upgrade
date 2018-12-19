@@ -15,6 +15,11 @@ use Drupal\migrate_plus\Entity\MigrationGroup;
 use Drupal\Core\Database\Database;
 use Drush\Sql\SqlBase;
 
+/**
+ * Class MigrateUpgradeDrushRunner
+ *
+ * @package Drupal\migrate_upgrade
+ */
 class MigrateUpgradeDrushRunner {
 
   use MigrationConfigurationTrait;
@@ -111,8 +116,9 @@ class MigrateUpgradeDrushRunner {
   }
 
   /**
-   * From the provided source information, instantiate the appropriate migrations
-   * in the active configuration.
+   * From the provided source information, configure the appropriate migrations.
+   *
+   * Configures from the currently active configuration.
    *
    * @throws \Exception
    */
@@ -131,7 +137,7 @@ class MigrateUpgradeDrushRunner {
     else {
       // Maintain some simple BC with Drush 8. Only call Drush 9 if it exists.
       // Otherwise fallback to the legacy Drush 8 method.
-      if(method_exists(SqlBase::class, 'dbSpecFromDBUrl')) {
+      if (method_exists(SqlBase::class, 'dbSpecFromDBUrl')) {
         $db_spec = SqlBase::dbSpecFromDbUrl($db_url);
       }
       else {
@@ -202,8 +208,8 @@ class MigrateUpgradeDrushRunner {
       $migration->setProcessOfProperty('nid', $new_nid_process);
     }
     elseif ($source['plugin'] == 'd6_term_node_revision') {
-      // If the ID mapping is to the underived d6_node_revision migration, replace
-      // it with an expanded list of node migrations.
+      // If the ID mapping is to the un-derived d6_node_revision migration,
+      // replace it with an expanded list of node migrations.
       $process = $migration->getProcess();
       $new_vid_process = [];
       foreach ($process['vid'] as $delta => $plugin_configuration) {
@@ -321,7 +327,7 @@ class MigrateUpgradeDrushRunner {
   /**
    * Set entity properties.
    *
-   * @param ConfigEntityInterface $entity
+   * @param \Drupal\Core\Config\Entity\ConfigEntityInterface $entity
    *   The entity to update.
    * @param array $properties
    *   The properties to update.
@@ -339,8 +345,7 @@ class MigrateUpgradeDrushRunner {
   }
 
   /**
-   * Rewrite any migration plugin IDs so they won't conflict with the core
-   * IDs.
+   * Rewrite any migration plugin IDs so they won't conflict with the core IDs.
    *
    * @param array $entity_array
    *   A configuration array for a migration.
@@ -364,7 +369,8 @@ class MigrateUpgradeDrushRunner {
   /**
    * Recursively substitute IDs for migration plugins.
    *
-   * @param mixed $process
+   * @param array|string $process
+   *   The process to inspect and substitute.
    */
   protected function substituteMigrationIds(&$process) {
     if (is_array($process)) {
@@ -408,7 +414,9 @@ class MigrateUpgradeDrushRunner {
   }
 
   /**
-   * @param $id
+   * Modify an ID.
+   *
+   * @param string $id
    *   The original core plugin ID.
    *
    * @return string

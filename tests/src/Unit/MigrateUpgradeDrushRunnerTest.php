@@ -199,12 +199,15 @@ class TestMigrateUpgradeDrushRunner extends MigrateUpgradeDrushRunner {
     ];
   }
 
+  // @codingStandardsIgnoreStart
   /**
    * {@inheritdoc}
+   *
    */
   public function substituteIds(array $entity_array) {
     return parent::substituteIds($entity_array);
   }
+  // @codingStandardsIgnoreEnd
 
 }
 
@@ -216,11 +219,12 @@ if (!function_exists('drush_get_option')) {
    * Override for called function.
    *
    * @param mixed $option
-   *   The name of the option to get
+   *   The name of the option to get.
    * @param mixed $default
-   *   Optional. The value to return if the option has not been set
+   *   Optional. The value to return if the option has not been set.
    * @param mixed $context
-   *   Optional. The context to check for the option. If this is set, only this context will be searched.
+   *   Optional. The context to check for the option. If this is set, only this
+   *   context will be searched.
    *
    * @return mixed
    *   The default, for this override.

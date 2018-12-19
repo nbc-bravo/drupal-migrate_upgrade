@@ -69,6 +69,8 @@ class MigrateUpgradeCommands extends DrushCommands {
   }
 
   /**
+   * Validation callback for password.
+   *
    * @hook validate migrate:upgrade
    */
   public function validatePassword(CommandData $commandData) {
@@ -82,6 +84,8 @@ class MigrateUpgradeCommands extends DrushCommands {
   }
 
   /**
+   * Legacy database url option.
+   *
    * @hook option migrate:upgrade
    */
   public function legacyDatabaseUrl(Command $command, AnnotationData $annotationData) {
@@ -94,6 +98,8 @@ class MigrateUpgradeCommands extends DrushCommands {
   }
 
   /**
+   * Legacy database key option.
+   *
    * @hook option migrate:upgrade
    */
   public function legacyDatabaseKey(Command $command, AnnotationData $annotationData) {
@@ -106,6 +112,8 @@ class MigrateUpgradeCommands extends DrushCommands {
   }
 
   /**
+   * Legacy database prefix option.
+   *
    * @hook option migrate:upgrade
    */
   public function legacyDatabasePrefix(Command $command, AnnotationData $annotationData) {
@@ -118,6 +126,8 @@ class MigrateUpgradeCommands extends DrushCommands {
   }
 
   /**
+   * Legacy file system root path option.
+   *
    * @hook option migrate:upgrade
    */
   public function legacyRoot(Command $command, AnnotationData $annotationData) {
@@ -130,6 +140,8 @@ class MigrateUpgradeCommands extends DrushCommands {
   }
 
   /**
+   * Configure only option.
+   *
    * @hook option migrate:upgrade
    */
   public function configureOnly(Command $command, AnnotationData $annotationData) {
@@ -142,6 +154,8 @@ class MigrateUpgradeCommands extends DrushCommands {
   }
 
   /**
+   * Prefix all migrations.
+   *
    * @hook option migrate:upgrade
    */
   public function migrationPrefix(Command $command, AnnotationData $annotationData) {

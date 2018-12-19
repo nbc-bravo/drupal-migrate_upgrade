@@ -4,6 +4,11 @@ namespace Drupal\migrate_upgrade;
 
 use Drupal\migrate\MigrateMessageInterface;
 
+/**
+ * Class DrushLogMigrateMessage.
+ *
+ * @package Drupal\migrate_upgrade
+ */
 class DrushLogMigrateMessage implements MigrateMessageInterface {
 
   /**
