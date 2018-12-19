@@ -16,7 +16,7 @@ use Drupal\Core\Database\Database;
 use Drush\Sql\SqlBase;
 
 /**
- * Class MigrateUpgradeDrushRunner
+ * Class MigrateUpgradeDrushRunner.
  *
  * @package Drupal\migrate_upgrade
  */
