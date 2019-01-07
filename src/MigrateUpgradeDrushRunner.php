@@ -113,6 +113,14 @@ class MigrateUpgradeDrushRunner {
         'migration-prefix' => drush_get_option('migration-prefix', 'upgrade_'),
       ];
     }
+    $this->options = array_merge([
+      'legacy-db-key' => '',
+      'legacy-db-url' => '',
+      'legacy-db-prefix' => '',
+      'legacy-root' => '',
+      'debug' => '',
+      'migration-prefix' => 'upgrade_',
+    ], $this->options);
   }
 
   /**
@@ -124,8 +132,6 @@ class MigrateUpgradeDrushRunner {
    */
   public function configure() {
     $legacy_db_key = $this->options['legacy-db-key'];
-    $db_url = $this->options['legacy-db-url'];
-    $db_prefix = $this->options['legacy-db-prefix'];
     if (!empty($legacy_db_key)) {
       $connection = Database::getConnection('default', $legacy_db_key);
       $this->version = $this->getLegacyDrupalVersion($connection);
@@ -135,6 +141,8 @@ class MigrateUpgradeDrushRunner {
       \Drupal::state()->set('migrate.fallback_state_key', $database_state_key);
     }
     else {
+      $db_url = $this->options['legacy-db-url'];
+      $db_prefix = $this->options['legacy-db-prefix'];
       // Maintain some simple BC with Drush 8. Only call Drush 9 if it exists.
       // Otherwise fallback to the legacy Drush 8 method.
       if (method_exists(SqlBase::class, 'dbSpecFromDBUrl')) {
@@ -234,8 +242,9 @@ class MigrateUpgradeDrushRunner {
     $process = $migration->getProcess();
     foreach ($process as $destination => &$plugins) {
       foreach ($plugins as &$plugin) {
-        if ($plugin['plugin'] == 'd6_field_file') {
-          $plugin['migration'] = $this->modifyId($plugin['migration']);
+        if ($plugin['plugin'] === 'd6_field_file') {
+          $file_migration = isset($plugin['migration']) ? $plugin['migration'] : 'd6_file';
+          $plugin['migration'] = $this->modifyId($file_migration);
         }
       }
     }
@@ -302,15 +311,20 @@ class MigrateUpgradeDrushRunner {
       drush_print(dt('Exporting @migration as @new_migration',
         ['@migration' => $migration_id, '@new_migration' => $this->modifyId($migration_id)]));
       $migration_details['id'] = $migration_id;
-      $migration_details['class'] = $migration->get('class');
-      $migration_details['cck_plugin_method'] = $migration->get('cck_plugin_method');
-      $migration_details['field_plugin_method'] = $migration->get('field_plugin_method');
+      $migration_details['label'] = $migration->label();
+      $plugin_definition = $migration->getPluginDefinition();
+      $migration_details['class'] = $plugin_definition['class'];
+      if (isset($plugin_definition['field_plugin_method'])) {
+        $migration_details['field_plugin_method'] = $plugin_definition['field_plugin_method'];
+      }
+      if (isset($plugin_definition['cck_plugin_method'])) {
+        $migration_details['cck_plugin_method'] = $plugin_definition['cck_plugin_method'];
+      }
       $migration_details['migration_group'] = $this->databaseStateKey;
-      $migration_details['migration_tags'] = $migration->get('migration_tags');
-      $migration_details['label'] = $migration->get('label');
+      $migration_details['migration_tags'] = isset($plugin_definition['migration_tags']) ? $plugin_definition['migration_tags'] : [];
       $migration_details['source'] = $migration->getSourceConfiguration();
       $migration_details['destination'] = $migration->getDestinationConfiguration();
-      $migration_details['process'] = $migration->get('process');
+      $migration_details['process'] = $migration->getProcess();
       $migration_details['migration_dependencies'] = $migration->getMigrationDependencies();
       $migration_details = $this->substituteIds($migration_details);
       $migration_entity = Migration::load($migration_details['id']);
