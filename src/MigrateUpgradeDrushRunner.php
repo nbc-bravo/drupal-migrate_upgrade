@@ -159,6 +159,7 @@ class MigrateUpgradeDrushRunner {
 
     $this->databaseStateKey = 'migrate_drupal_' . $this->version;
     $migrations = $this->getMigrations($this->databaseStateKey, $this->version);
+    $migrations = $this->filterPrefixedMigrations($this->options['migration-prefix'], $migrations);
     $this->migrationList = [];
     foreach ($migrations as $migration) {
       $this->applyFilePath($migration);
@@ -505,6 +506,28 @@ class MigrateUpgradeDrushRunner {
     $message = t('Source ID @source_id: @message',
       ['@source_id' => $source_id_string, '@message' => $event->getMessage()]);
     static::$messages->display($message, $type);
+  }
+
+  /**
+   * Filters out migrations which were prefixed.
+   *
+   * For example filter out migrations that were prefixed with upgrade_
+   * in a previous execution of the migrate-upgrade command.
+   *
+   * @param string $prefix
+   *   The migration prefix.
+   * @param \Drupal\migrate\Plugin\MigrationInterface[] $migrations
+   *   An array of migrations.
+   *
+   * @return \Drupal\migrate\Plugin\MigrationInterface[]
+   *   The filtered array of migrations.
+   */
+  private function filterPrefixedMigrations($prefix, $migrations) {
+    $migrations = array_filter($migrations, function ($migration) use ($prefix) {
+      return strpos($migration->id(), $prefix) === FALSE;
+    });
+
+    return $migrations;
   }
 
 }
